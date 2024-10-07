@@ -6,11 +6,11 @@ from cvzone.SelfiSegmentationModule import SelfiSegmentation
 segmentor = SelfiSegmentation(model=0)
 
 # Load the main video
-video = cv2.VideoCapture('com.mov')
-pha_video = cv2.VideoCapture('pha.mov')
+video = cv2.VideoCapture('headphones.mp4')
+#pha_video = cv2.VideoCapture('pha.mov')
 
 # Load the background video that will replace the phone screen
-background_video = cv2.VideoCapture('tiktok_vertical.mov')
+background_video = cv2.VideoCapture('tiktok.mov')
 
 # Get the properties of the main video
 frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -41,6 +41,42 @@ zoom_increment = 0.2  # Adjust zoom speed
 # Function to apply zoom towards the center of the background frame in the main frame
 import cv2
 
+lower_green = np.array([35, 40, 40])
+upper_green = np.array([85, 255, 255])
+
+
+def increase_saturation(frame):
+    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Split the channels: H (Hue), S (Saturation), and V (Value)
+    h, s, v = cv2.split(hsv_frame)
+
+    # Adjust the saturation by multiplying with a factor (1.0 means no change)
+    saturation_scale = 1.5  # Increase saturation by 50%
+    s = cv2.multiply(s, saturation_scale)
+
+    # Clip the values to ensure they are in the valid range [0, 255]
+    s = np.clip(s, 0, 255).astype(np.uint8)
+
+    # Merge the channels back
+    hsv_adjusted = cv2.merge([h, s, v])
+
+    # Convert the image back to BGR color space
+    corrected_frame = cv2.cvtColor(hsv_adjusted, cv2.COLOR_HSV2BGR)
+
+    return corrected_frame
+def extract_green_layers(frame):
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    green_mask = cv2.inRange(hsv, lower_green, upper_green)
+    green_layer = cv2.bitwise_and(frame, frame, mask=green_mask)
+    hsv[:, :, 1][green_mask != 0] = hsv[:, :, 1][green_mask != 0] * 0.1  # Уменьшаем насыщенность (S)
+    inverse_green_mask = cv2.bitwise_not(green_mask)
+    # Увеличиваем насыщенность для областей, которые не зеленые (инвертированная маска)
+    hsv[:, :, 1][inverse_green_mask != 0] = np.clip(hsv[:, :, 1][inverse_green_mask != 0] * 1.4, 0, 255)
+
+    modified_frame = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+    return modified_frame, green_layer
 
 def adjust_contrast(frame, alpha, beta=0):
     """
@@ -69,9 +105,6 @@ def frame_to_base64(frame):
 
     return base64_str
 
-
-lower_green = np.array([35, 40, 40])
-upper_green = np.array([85, 255, 255])
 
 
 # Function for basic spill suppression (adjust colors near the edges)
@@ -146,6 +179,8 @@ def replace_phone_screen(image, background_frame):
     overlay_color = image[:, :, :3]  # BGR channels
     overlay_alpha = image[:, :, 3]  # Alpha channel
 
+    overlay_color, overlay_color_green = extract_green_layers(overlay_color)
+
 
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     blue_mask = cv2.inRange(hsv_frame, lower_blue, upper_blue)
@@ -216,7 +251,7 @@ folder_path = './sequence/'
 file_pattern = '{:04d}.png'  # Modify this based on your file naming convention
 
 # Loop to read images from 1 to 100 (for example)
-for i in range(0, 206):
+for i in range(0, 2):
     file_name = file_pattern.format(i)
     file_path = os.path.join(folder_path, file_name)
 
@@ -232,12 +267,12 @@ for i in range(0, 206):
 
     output_video.write(processed_frame)
 
-while background_video.isOpened():
+"""while background_video.isOpened():
     ret_bg, background_frame = background_video.read()
     if not ret_bg:
         break
     main_background = cv2.resize(background_frame, (frame_width, frame_height))
-    output_video.write(main_background)
+    output_video.write(main_background)"""
 
 cv2.destroyAllWindows()
 
