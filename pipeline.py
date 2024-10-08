@@ -48,9 +48,3 @@ if not os.path.exists(output_composition):
     )
 
 chroma_replace(output_video, full_background_path, phone_background_path)
-
-
-# Исходное видео передается в реплейс_колор
-# Вызов нейронки конверта видео
-# Получаем пнг секвенцию с кадрами из видео альфа каналов
-# вызов эплай хромакей, передаю бекграунд и передаешь путь к папке с пнг секвенцией
