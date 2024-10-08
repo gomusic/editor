@@ -19,7 +19,7 @@ from torchvision import transforms
 from typing import Optional, Tuple
 from tqdm.auto import tqdm
 
-from inference_utils import VideoReader, VideoWriter, ImageSequenceReader, ImageSequenceWriter
+from .inference_utils import VideoReader, VideoWriter, ImageSequenceReader, ImageSequenceWriter
 
 def convert_video(model,
                   input_source: str,

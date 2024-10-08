@@ -2,47 +2,128 @@ import cv2
 import numpy as np
 import base64
 from cvzone.SelfiSegmentationModule import SelfiSegmentation
+import os
+import moviepy.editor as mp
 
 segmentor = SelfiSegmentation(model=0)
-
-# Load the main video
-video = cv2.VideoCapture('headphones.mp4')
-#pha_video = cv2.VideoCapture('pha.mov')
-
-# Load the background video that will replace the phone screen
-background_video = cv2.VideoCapture('tiktok.mov')
-
-# Get the properties of the main video
-frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
-frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fps = int(video.get(cv2.CAP_PROP_FPS))
-
-# Define the codec and create VideoWriter object to save the output
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-output_video = cv2.VideoWriter('output_detected_video.mp4', fourcc, fps, (frame_width, frame_height))
 
 # Define the blue color range in HSV for detecting the phone screen
 lower_blue = np.array([80, 50, 80])  # adjust based on your blue color range
 upper_blue = np.array([130, 255, 255])  # adjust based on your blue color range
 
-lower_green = np.array([120, 255, 150])  # adjust based on your blue color range
-upper_green = np.array([120, 255, 160])  # adjust based on your blue color range
-
-# Initialize detection tracking
-consecutive_frame_count = 0
-detected_for_required_period = False
-start_zooming = False
-required_frames_for_one_second = fps  # Number of frames in 1 second
+lower_green = np.array([35, 40, 40])
+upper_green = np.array([85, 255, 255])
 
 # Initialize zoom scale
 zoom_scale = 1.0
 zoom_increment = 0.2  # Adjust zoom speed
 
-# Function to apply zoom towards the center of the background frame in the main frame
-import cv2
+consecutive_frame_count = 0
+detected_for_required_period = False
+start_zooming = False
 
-lower_green = np.array([35, 40, 40])
-upper_green = np.array([85, 255, 255])
+def chroma_replace(video_path: str, full_background: str, phone_background: str):
+    # Load the main video
+    video = cv2.VideoCapture(video_path)
+    # pha_video = cv2.VideoCapture('pha.mov')
+    # phone_video = mp.VideoFileClip(phone_background)
+    # phone_video = pha_video.set_fps(int(video.get(cv2.CAP_PROP_FPS)))
+
+    # Load the background video that will replace the phone screen
+    background_video = mp.VideoFileClip(full_background)
+    background_video = background_video.set_fps(int(video.get(cv2.CAP_PROP_FPS)))
+
+    if not os.path.exists('temp'):
+        os.makedirs('temp')
+
+    temp_full_back_path = os.path.join('temp', f'{os.path.splitext(os.path.basename(full_background))[0]}_temp.mp4')
+    # temp_phone_back_path = os.path.join('temp', f'{os.path.splitext(os.path.basename(phone_background))[0]}_temp.mp4')
+    background_video.write_videofile(temp_full_back_path, codec='libx264')
+    # phone_video.write_videofile(temp_phone_back_path, codec='libx264')
+
+    background_video = cv2.VideoCapture(temp_full_back_path)
+    # phone_video = cv2.VideoCapture(temp_phone_back_path)
+
+
+    # Get the properties of the main video
+    frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(video.get(cv2.CAP_PROP_FPS))
+
+    # Define the codec and create VideoWriter object to save the output
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    output_video = cv2.VideoWriter(f'{os.path.splitext(video_path)[0]}_detected_video.mp4', fourcc, fps,
+                                   (frame_width, frame_height))
+
+    # Initialize detection tracking
+    required_frames_for_one_second = fps  # Number of frames in 1 second
+
+    # Function to apply zoom towards the center of the background frame in the main frame
+
+    # Folder containing your PNG images
+    folder_path = f'./sequence/{os.path.splitext(video_path)[0]}'
+    # The file naming pattern for the images (e.g., frame_001.png, frame_002.png, etc.)
+    file_pattern = '{:04d}.png'  # Modify this based on your file naming convention
+
+    # Loop to read images from 1 to 100 (for example)
+    num_files = len([f for f in os.listdir(folder_path) if f.endswith('.png')])
+
+    for i in range(num_files):
+        file_name = file_pattern.format(i)
+        file_path = os.path.join(folder_path, file_name)
+
+        # Load the image
+        image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
+
+        if image is None:
+            print(f"Image {file_name} not found, skipping...")
+            continue
+
+        ret_bg, background_frame = background_video.read()
+        processed_frame = replace_phone_screen(video, image, background_frame, required_frames_for_one_second, frame_width, frame_height)
+
+        output_video.write(processed_frame)
+
+    """while background_video.isOpened():
+        ret_bg, background_frame = background_video.read()
+        if not ret_bg:
+            break
+        main_background = cv2.resize(background_frame, (frame_width, frame_height))
+        output_video.write(main_background)"""
+
+    cv2.destroyAllWindows()
+
+    """
+    # Process the video frame by frame
+    while video.isOpened():
+        ret, frame = video.read()
+        if not ret:
+            break
+
+        ret_pha, frame_pha = pha_video.read()
+        if not ret_pha:
+            break
+
+        ret_bg, background_frame = background_video.read()
+        if not ret_bg:
+            background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret_bg, background_frame = background_video.read()
+
+        # if consecutive_frame_count and not start_zooming:
+
+        # Apply zoom and replace the phone screen
+        processed_frame = replace_phone_screen(frame, background_frame, frame_pha)
+
+        output_video.write(processed_frame)
+    """
+
+    # Release everything after the loop
+    video.release()
+    background_video.release()
+    output_video.release()
+    cv2.destroyAllWindows()
+    os.remove(temp_full_back_path)
+    # os.remove(temp_phone_back_path)
 
 
 def increase_saturation(frame):
@@ -110,7 +191,7 @@ def frame_to_base64(frame):
 # Function for basic spill suppression (adjust colors near the edges)
 
 
-def apply_zoom_to_center(main_frame, background_rect, background_frame):
+def apply_zoom_to_center(main_frame, background_rect, background_frame, frame_width, frame_height):
     global zoom_scale
 
     h, w = main_frame.shape[:2]  # Main frame height and width
@@ -145,7 +226,7 @@ def apply_zoom_to_center(main_frame, background_rect, background_frame):
     return zoomed_frame
 
 
-def apply_background(overlay_alpha, overlay_color, background_frame):
+def apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height):
     main_background = cv2.resize(background_frame, (frame_width, frame_height))
     overlay_alpha = overlay_alpha / 255.0
 
@@ -166,7 +247,7 @@ def apply_background(overlay_alpha, overlay_color, background_frame):
     return main_background
 
 # Function to detect the blue screen and replace it with a background frame
-def replace_phone_screen(image, background_frame):
+def replace_phone_screen(video, image, background_frame, required_frames_for_one_second, frame_width, frame_height):
     global consecutive_frame_count
     global detected_for_required_period
     global start_zooming
@@ -192,13 +273,13 @@ def replace_phone_screen(image, background_frame):
     frame[blue_mask != 0] = [0, 0, 0]
 
     if not contours:
-        main_background = apply_background(overlay_alpha, overlay_color, background_frame)
+        main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
 
         return main_background
 
     filtered_contours = [c for c in contours if cv2.contourArea(c) > 1700]  # Adjust the threshold as needed
     if not filtered_contours:
-        main_background = apply_background(overlay_alpha, overlay_color, background_frame)
+        main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
         return main_background
 
     largest_contour = max(filtered_contours, key=cv2.contourArea)
@@ -225,13 +306,13 @@ def replace_phone_screen(image, background_frame):
     # Check if the background frame is detected for more than 1 second
 
     ##
-    main_background = apply_background(overlay_alpha, overlay_color, background_frame)
+    main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
     ##
 
     # Apply zoom towards the center of the background in the main frame
     if start_zooming:
         zoom_scale += zoom_increment
-        frame = apply_zoom_to_center(main_background, (x, y, w, h), background_frame)
+        frame = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, frame_width, frame_height)
         return frame
 
     if not start_zooming and consecutive_frame_count >= (required_frames_for_one_second):
@@ -240,69 +321,3 @@ def replace_phone_screen(image, background_frame):
         print("Background detected for more than one second at frame:", int(video.get(cv2.CAP_PROP_POS_FRAMES)))
 
     return main_background
-
-
-import cv2
-import os
-
-# Folder containing your PNG images
-folder_path = './sequence/'
-# The file naming pattern for the images (e.g., frame_001.png, frame_002.png, etc.)
-file_pattern = '{:04d}.png'  # Modify this based on your file naming convention
-
-# Loop to read images from 1 to 100 (for example)
-for i in range(0, 2):
-    file_name = file_pattern.format(i)
-    file_path = os.path.join(folder_path, file_name)
-
-    # Load the image
-    image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
-
-    if image is None:
-        print(f"Image {file_name} not found, skipping...")
-        continue
-
-    ret_bg, background_frame = background_video.read()
-    processed_frame = replace_phone_screen(image, background_frame)
-
-    output_video.write(processed_frame)
-
-"""while background_video.isOpened():
-    ret_bg, background_frame = background_video.read()
-    if not ret_bg:
-        break
-    main_background = cv2.resize(background_frame, (frame_width, frame_height))
-    output_video.write(main_background)"""
-
-cv2.destroyAllWindows()
-
-
-"""
-# Process the video frame by frame
-while video.isOpened():
-    ret, frame = video.read()
-    if not ret:
-        break
-
-    ret_pha, frame_pha = pha_video.read()
-    if not ret_pha:
-        break
-
-    ret_bg, background_frame = background_video.read()
-    if not ret_bg:
-        background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        ret_bg, background_frame = background_video.read()
-
-    # if consecutive_frame_count and not start_zooming:
-
-    # Apply zoom and replace the phone screen
-    processed_frame = replace_phone_screen(frame, background_frame, frame_pha)
-
-    output_video.write(processed_frame)
-"""
-
-# Release everything after the loop
-video.release()
-background_video.release()
-output_video.release()
-cv2.destroyAllWindows()

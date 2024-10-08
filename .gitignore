@@ -2,3 +2,4 @@
 .DS_Store
 rvm_resnet50.pth
 sequence
+*.mp4
