@@ -76,10 +76,10 @@ python pipeline.py --original_video input.mp4 \
 ***Step 3:*** The zoom is dynamically applied to the phone’s screen, creating a zoom-in effect throughout the video playback.
 
 #### Before:
-![](examples_gif/before.gif)
+![](README_ASSETS/before.gif)
 
 #### After:
-![](examples_gif/after.gif)
+![](README_ASSETS/after.gif)
 
 ## Notes
 
