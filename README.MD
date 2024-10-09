@@ -8,7 +8,7 @@ This project allows you to process videos using a matting technique (from the Ro
 [Usage](#Usage)\
 [Arguments](#Arguments)\
 [Example](#Example)\
-[Notes](#)
+[Notes](#Notes)
 
 ## Features
 
