@@ -5,6 +5,7 @@ This project allows you to process videos using a matting technique (from the Ro
 ## Table of Contents
 [Features](#Features) \
 [Installation](#Installation)\
+[Minimum Requirements](#Minimum-Requirements)\
 [Usage](#Usage)\
 [Arguments](#Arguments)\
 [Example](#Example)\
@@ -30,6 +31,16 @@ This project allows you to process videos using a matting technique (from the Ro
     Place the downloaded .pth model in the root directory of the project, or specify its path in the command line arguments.
 
 - Install [pytorch](https://pytorch.org/) (Recommendation: 2.4.1+cu118)
+
+## Minimum Requirements
+
+- Python: 3.6 or higher.\
+- CUDA: 10.1 or higher (if using a GPU).\
+- PyTorch: 1.7 or later (Recommendation: 2.4.1+cu118).\
+- FFmpeg: Must be installed for handling video inputs and outputs.\
+- GPU: An NVIDIA GPU is recommended for optimal performance, although CPU usage is possible.
+
+Recommendation: **PyTorch:** 2.4.1, **CUDA:** 11.8.
 
 ## Usage
 
