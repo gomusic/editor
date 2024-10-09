@@ -120,6 +120,6 @@ The result will be a video with the replaced color in the background and named o
 
 The sequence/ folder will contain PNG files (with alpha channels) of each processed frame after applying the matting model.\
 The finished video will have the default name output_video.mp4 and will be saved in the current directory.\
-The default matting model is rvm_resnet50.pth, but you can also use the smaller rvm_mobilenetv3.pth model for faster processing if needed.\
+The default matting model is rvm_resnet50.pth, but you can also use the smaller rvm_mobilenetv3.pth model for faster processing if needed.
 
 Feel free to adjust the zoom parameters as per your creative requirements to achieve the desired effect.
