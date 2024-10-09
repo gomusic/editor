@@ -84,8 +84,8 @@ python pipeline.py --original_video input.mp4 \
 ### Example workflow:
 
 ***Step 1:*** For each video that is being processed for the first time, the [replace_color](#Replace-color) script is run first.\
-***Step 2:*** Next, the script removes the chroma key color (green or blue) from the original video and replaces it with transparent layers.
-***Step 3:*** Using the selected background video, the chromakey effect is applied to the transparent areas.
+***Step 2:*** Next, the script removes the chroma key color (green or blue) from the original video and replaces it with transparent layers.\
+***Step 3:*** Using the selected background video, the chromakey effect is applied to the transparent areas.\
 ***Step 4:*** Zoom is dynamically applied to the phone screen, creating a zoom effect during video playback.
 
 #### Before:
