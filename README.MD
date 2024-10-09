@@ -34,10 +34,10 @@ This project allows you to process videos using a matting technique (from the Ro
 
 ## Minimum Requirements
 
-- Python: 3.6 or higher.\
-- CUDA: 10.1 or higher (if using a GPU).\
-- PyTorch: 1.7 or later (Recommendation: 2.4.1+cu118).\
-- FFmpeg: Must be installed for handling video inputs and outputs.\
+- Python: 3.6 or higher.
+- CUDA: 10.1 or higher (if using a GPU).
+- PyTorch: 1.7 or later (Recommendation: 2.4.1+cu118).
+- FFmpeg: Must be installed for handling video inputs and outputs.
 - GPU: An NVIDIA GPU is recommended for optimal performance, although CPU usage is possible.
 
 Recommendation: **PyTorch:** 2.4.1, **CUDA:** 11.8.
