@@ -14,10 +14,10 @@ This project allows you to process videos using a matting technique (from the Ro
 
 ## Features
 
-    Robust Video Matting: Automatically segments and extracts objects from videos (such as people) based on the selected matting model.
-    Chroma Key Replacement: Replaces the green/blue screen regions of a video with a background video or image.
-    Dynamic Zooming: The script allows dynamic zoom effects during playback, with customizable zoom settings.
-    Automatic Mask Creation: Converts videos into a sequence of PNG images with alpha transparency for further editing or compositing.
+- [Robust Video Matting](https://github.com/PeterL1n/RobustVideoMatting): Automatically segments and extracts objects from videos (such as people) based on the selected matting model.
+- Chroma Key Replacement: Replaces the green/blue screen regions of a video with a background video or image.
+- Dynamic Zooming: The script allows dynamic zoom effects during playback, with customizable zoom settings.
+- Automatic Mask Creation: Converts videos into a sequence of PNG images with alpha transparency for further editing or compositing.
 
 ## Installation
 
