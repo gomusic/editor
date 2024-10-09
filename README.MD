@@ -8,6 +8,7 @@ This project allows you to process videos using a matting technique (from the Ro
 [Usage](#Usage)\
 [Arguments](#Arguments)\
 [Example](#Example)\
+[Replace Color](#Replace-color)\
 [Notes](#Notes)
 
 ## Features
@@ -41,7 +42,9 @@ python pipeline.py --original_video <path_to_original_video> \
                    --phone_background <path_to_phone_background_video> \
                    --model_path <path_to_model> \
                    --zoom_scale <initial_zoom_scale> \
-                   --zoom_increment <zoom_increment>
+                   --zoom_increment <zoom_increment> \
+                   --lower_green 35 40 40 \
+                   --upper_green 85 255 255 
 ```
 ## Arguments
 ```text
@@ -50,6 +53,15 @@ python pipeline.py --original_video <path_to_original_video> \
     --model_path: (Optional) Path to the Robust Video Matting model file. rvm_resnet50.pth or rvm_mobilenetv3.pth. Default: rvm_resnet50.pth.
     --zoom_scale: (Optional) The initial zoom scale for the chroma key effect. Default: 1.0.
     --zoom_increment: (Optional) The zoom increment applied per frame for the dynamic zoom effect. Default: 0.2.
+    --output_video_name (Optional) Title of the final video without extension (default: output_video).
+    --lower_blue: (Optional) Lower HSV range for the blue color used in chroma key processing, provided as three integers. 
+                  Default: [80, 50, 80].
+    --upper_blue: (Optional) Upper HSV range for the blue color used in chroma key processing, provided as three integers. 
+                  Default: [130, 255, 255].
+    --lower_green: (Optional) Lower HSV range for the green color used in chroma key processing, provided as three integers. 
+                   Default: [35, 40, 40].
+    --upper_green: (Optional) Upper HSV range for the green color used in chroma key processing, provided as three integers. 
+                   Default: [85, 255, 255].
 ```
     
 ### Description of Chroma Keying and Zoom Parameters:
@@ -69,11 +81,12 @@ python pipeline.py --original_video input.mp4 \
                    --phone_background phone_bg.mp4 \
                    --model_path rvm_resnet50.pth 
 ```
-### Example Workflow:
+### Example workflow:
 
-***Step 1:*** The script first removes the chroma key color (green or blue) from the original video and replaces it with transparent layers.\
-***Step 2:*** Using the selected background video, the chroma key effect is applied to the transparent regions.\
-***Step 3:*** The zoom is dynamically applied to the phone’s screen, creating a zoom-in effect throughout the video playback.
+***Step 1:*** For each video that is being processed for the first time, the [replace_color](#Replace-color) script is run first.\
+***Step 2:*** Next, the script removes the chroma key color (green or blue) from the original video and replaces it with transparent layers.
+***Step 3:*** Using the selected background video, the chromakey effect is applied to the transparent areas.
+***Step 4:*** Zoom is dynamically applied to the phone screen, creating a zoom effect during video playback.
 
 #### Before:
 ![](README_ASSETS/before.gif)
@@ -81,10 +94,21 @@ python pipeline.py --original_video input.mp4 \
 #### After:
 ![](README_ASSETS/after.gif)
 
+## Replace color
+
+This script finds dots of a different color on the background and paints them in the background color. \
+The result will be a video with the replaced color in the background and named output_name_replace_color.mp4
+
+### Before replace
+![](README_ASSETS/before.gif)
+
+### After replace
+![](README_ASSETS/after_replace.gif)
+
 ## Notes
 
 The sequence/ folder will contain PNG files (with alpha channels) of each processed frame after applying the matting model.\
-The final video output will be named input_output_detected_video.mp4 and saved in the current directory.\
+The finished video will have the default name output_video.mp4 and will be saved in the current directory.\
 The default matting model is rvm_resnet50.pth, but you can also use the smaller rvm_mobilenetv3.pth model for faster processing if needed.\
 
 Feel free to adjust the zoom parameters as per your creative requirements to achieve the desired effect.

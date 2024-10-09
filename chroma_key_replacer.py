@@ -8,12 +8,6 @@ import moviepy.editor as mp
 # Initialize the segmentation model
 segmentor = SelfiSegmentation(model=0)
 
-# Define the color ranges in HSV
-lower_blue = np.array([80, 50, 80])
-upper_blue = np.array([130, 255, 255])
-lower_green = np.array([35, 40, 40])
-upper_green = np.array([85, 255, 255])
-
 # Detection tracking
 consecutive_frame_count = 0
 detected_for_required_period = False
@@ -30,7 +24,7 @@ def increase_saturation(frame):
 
 
 # Function to extract green layers and modify saturation
-def extract_green_layers(frame):
+def extract_green_layers(frame, lower_green, upper_green):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     green_mask = cv2.inRange(hsv, lower_green, upper_green)
     green_layer = cv2.bitwise_and(frame, frame, mask=green_mask)
@@ -89,14 +83,14 @@ def apply_background(overlay_alpha, overlay_color, background_frame, frame_width
 
 
 # Function to replace the phone screen with background
-def replace_phone_screen(video, image, background_frame, required_frames_for_one_second, frame_width, frame_height, zoom_scale, zoom_increment):
+def replace_phone_screen(video, image, background_frame, required_frames_for_one_second, frame_width, frame_height, zoom_scale, zoom_increment, lower_green, upper_green, lower_blue, upper_blue):
     global consecutive_frame_count, detected_for_required_period, start_zooming
 
     frame = image[:, :, :3]
     overlay_color, overlay_alpha = image[:, :, :3], image[:, :, 3]
 
     # Extract green layers and process frame
-    overlay_color, _ = extract_green_layers(overlay_color)
+    overlay_color, _ = extract_green_layers(overlay_color, lower_green, upper_green)
 
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     blue_mask = cv2.inRange(hsv_frame, lower_blue, upper_blue)
@@ -145,7 +139,7 @@ def replace_phone_screen(video, image, background_frame, required_frames_for_one
 
 
 # Main chroma replace function
-def chroma_replace(video_path: str, full_background_path: str, phone_background_path: str, zoom_scale: float, zoom_increment: float):
+def chroma_replace(video_path: str, full_background_path: str, phone_background_path: str, zoom_scale: float, zoom_increment: float, output_name: str, lower_green: np.ndarray, upper_green: np.ndarray, lower_blue: np.ndarray, upper_blue: np.ndarray):
     video = cv2.VideoCapture(video_path)
     background_video = mp.VideoFileClip(full_background_path).set_fps(int(video.get(cv2.CAP_PROP_FPS)))
 
@@ -160,7 +154,7 @@ def chroma_replace(video_path: str, full_background_path: str, phone_background_
     frame_width, frame_height = int(video.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(video.get(cv2.CAP_PROP_FPS))
 
-    output_video = cv2.VideoWriter(f'{os.path.splitext(video_path)[0]}_detected_video.mp4',
+    output_video = cv2.VideoWriter(f'{output_name}.mp4',
                                    cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
     required_frames_for_one_second = fps
 
@@ -179,7 +173,7 @@ def chroma_replace(video_path: str, full_background_path: str, phone_background_
 
         ret_bg, background_frame = background_video.read()
         processed_frame = replace_phone_screen(video, image, background_frame, required_frames_for_one_second,
-                                               frame_width, frame_height, zoom_scale, zoom_increment)
+                                               frame_width, frame_height, zoom_scale, zoom_increment, lower_green, upper_green, lower_blue, upper_blue)
 
         output_video.write(processed_frame)
 

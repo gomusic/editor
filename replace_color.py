@@ -70,18 +70,14 @@ def process_frame(frame, green_lower, green_upper, radius=20):
 
 
 # Main function to process the video
-def replace(video_path: str):
+def replace(video_path: str, video_name, green_lower: np.ndarray, green_upper: np.ndarray):
     video = cv2.VideoCapture(video_path)
-    video_title = os.path.splitext(os.path.basename(video_path))[0]
     frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(video.get(cv2.CAP_PROP_FPS))
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    output_video = cv2.VideoWriter(f'{video_title}_output.mp4', fourcc, fps, (frame_width, frame_height))
-
-    green_lower = np.array([35, 40, 40])
-    green_upper = np.array([85, 255, 255])
+    output_video = cv2.VideoWriter(f'{video_name}_replace_color.mp4', fourcc, fps, (frame_width, frame_height))
 
     while True:
         ret, frame = video.read()
