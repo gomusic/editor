@@ -99,22 +99,18 @@ python pipeline.py --original_video input.mp4 \
 ***Step 3:*** Using the selected background video, the chromakey effect is applied to the transparent areas.\
 ***Step 4:*** Zoom is dynamically applied to the phone screen, creating a zoom effect during video playback.
 
-#### Before:
-![](README_ASSETS/before.gif)
-
-#### After:
-![](README_ASSETS/after.gif)
+| **Before** | **After** |
+|------------|:---------:|
+| ![](README_ASSETS/before.gif)   |    ![](README_ASSETS/after.gif)       |
 
 ## Replace color
 
 This script finds dots of a different color on the background and paints them in the background color. \
 The result will be a video with the replaced color in the background and named output_name_replace_color.mp4
 
-### Before replace
-![](README_ASSETS/before.gif)
-
-### After replace
-![](README_ASSETS/after_replace.gif)
+| **Before replace** | **After replace** |
+|------------|:---------:|
+| ![](README_ASSETS/before.gif)   |    ![](README_ASSETS/after_replace.gif)       |
 
 ## Notes
 
