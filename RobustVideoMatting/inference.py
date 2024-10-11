@@ -38,7 +38,7 @@ def convert_video(model,
     
     """
     Args:
-        input_source:A video file, or an image sequence directory. Images must be sorted in accending order, support png and jpg.
+        input_source:A video file, or an image robust directory. Images must be sorted in accending order, support png and jpg.
         input_resize: If provided, the input are first resized to (w, h).
         downsample_ratio: The model's downsample_ratio hyperparameter. If not provided, model automatically set one.
         output_type: Options: ["video", "png_sequence"].

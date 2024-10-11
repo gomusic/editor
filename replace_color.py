@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import os
 
 
 # Function to increase saturation
@@ -70,25 +69,22 @@ def process_frame(frame, green_lower, green_upper, radius=20):
 
 
 # Main function to process the video
-def replace(video_path: str, video_name, green_lower: np.ndarray, green_upper: np.ndarray):
-    video = cv2.VideoCapture(video_path)
+def replace(video_processing):
+    video = cv2.VideoCapture(video_processing.original_video)
     frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(video.get(cv2.CAP_PROP_FPS))
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    output_video = cv2.VideoWriter(f'{video_name}_replace_color.mp4', fourcc, fps, (frame_width, frame_height))
+    output_video = cv2.VideoWriter(f'{video_processing.replace_output_video}', fourcc, fps, (frame_width, frame_height))
 
     while True:
         ret, frame = video.read()
         if not ret:
             break
 
-        processed_frame = process_frame(frame, green_lower, green_upper)
+        processed_frame = process_frame(frame, video_processing.lower_green, video_processing.upper_green)
         output_video.write(processed_frame)
-
-        # Optionally display the frame
-        # cv2.imshow('Frame', processed_frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
