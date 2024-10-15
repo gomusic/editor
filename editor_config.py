@@ -7,19 +7,19 @@ class EditorConfig:
         original_video (str): Path to the original video file.
         full_background (str): Path to the full background video.
         phone_background (str): Path to the phone background video (optional).
-        model_path (str): Path to the model.
-        zoom_scale (float): Initial zoom scale.
-        zoom_increment (float): Zoom increment value.
-        output_video_name (str): Name of the output video file.
-        lower_blue (np.ndarray): Lower HSV threshold for blue color.
-        upper_blue (np.ndarray): Upper HSV threshold for blue color.
-        lower_green (np.ndarray): Lower HSV threshold for green color.
-        upper_green (np.ndarray): Upper HSV threshold for green color.
-        output_type (str): Output type ("png" or "video").
-        robust_model (str): Model type (resnet50 or mobilenetv3).
-        replace_output_video (str): Path to the resulting video from replace_color
-        output_composition (str): Path to AI-processed video
-        processing_model (str): Robust file processing model (cpu or gpu (cuda))
+        model_path (str): Path to the Robust Video Matting model.
+        zoom_scale (float): Initial zoom scale for the dynamic zoom effect.
+        zoom_increment (float): Increment applied to the zoom per frame.
+        output_video_name (str): Name of the output video file (without extension).
+        lower_blue (np.ndarray): Lower HSV threshold for blue color in chroma key processing.
+        upper_blue (np.ndarray): Upper HSV threshold for blue color in chroma key processing.
+        lower_green (np.ndarray): Lower HSV threshold for green color in chroma key processing.
+        upper_green (np.ndarray): Upper HSV threshold for green color in chroma key processing.
+        robust_output_type (str): Robust Video Matting output type (either "png" for image sequence or "video" for a full video).
+        robust_model (str): Robust Video Matting model type (either resnet50 or mobilenetv3).
+        replace_output_video (str): Path to the video output after color replacement is applied.
+        output_composition (str): Path to the final AI-processed video composition.
+        processing_model (str): File processing model for Robust Video Matting ('cpu' or 'gpu' (cuda)).
     """
 
     original_video: str = ''

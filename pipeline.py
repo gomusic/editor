@@ -83,9 +83,9 @@ def main():
                 model=model,  # Matting model
                 input_source=editor_config.replace_output_video,  # Video file or image sequence
                 output_type='video',  # Specify output as video
-                output_composition='com.mp4',  # Output path for composition
-                output_alpha="pha.mp4",  # [Optional] Output the raw alpha prediction.
-                output_foreground="fgr.mp4",  # [Optional] Output the raw foreground prediction.
+                output_composition=f'{editor_config.output_composition}/com.mp4',  # Output path for composition
+                output_alpha=f"{editor_config.output_composition}/pha.mp4",  # [Optional] Output the raw alpha prediction.
+                output_foreground=f"{editor_config.output_composition}/fgr.mp4",  # [Optional] Output the raw foreground prediction.
                 output_video_mbps=4,  # Output video bitrate (only for video)
                 downsample_ratio=None,  # Auto downsampling
                 seq_chunk=24  # Process 24 frames in parallel

@@ -61,18 +61,19 @@ python pipeline.py --original_video <path_to_original_video> \
 ```text
     --original_video: (Required) Path to the original video file that you want to process.
     --full_background: (Required) Path to the full background video that will replace the chroma-keyed regions of the original video.
-    --model_path: (Optional) Path to the Robust Video Matting model file. rvm_resnet50.pth or rvm_mobilenetv3.pth. Default: rvm_resnet50.pth.
-    --zoom_scale: (Optional) The initial zoom scale for the chroma key effect. Default: 1.0.
-    --zoom_increment: (Optional) The zoom increment applied per frame for the dynamic zoom effect. Default: 0.2.
-    --output_video_name (Optional) Title of the final video without extension (default: output_video).
-    --lower_blue: (Optional) Lower HSV range for the blue color used in chroma key processing, provided as three integers. 
-                  Default: [80, 50, 80].
-    --upper_blue: (Optional) Upper HSV range for the blue color used in chroma key processing, provided as three integers. 
-                  Default: [130, 255, 255].
-    --lower_green: (Optional) Lower HSV range for the green color used in chroma key processing, provided as three integers. 
-                   Default: [35, 40, 40].
-    --upper_green: (Optional) Upper HSV range for the green color used in chroma key processing, provided as three integers. 
-                   Default: [85, 255, 255].
+    --model_path: (Optional) Path to the Robust Video Matting model file. Default: rvm_resnet50.pth.
+    --zoom_scale: (Optional) Initial zoom scale for the chroma key effect. Default: 0.2.
+    --zoom_increment: (Optional) Zoom increment applied per frame for the dynamic zoom effect. Default: 1.
+    --output_video_name: (Optional) Name of the output video file (without extension). Default: output_video.
+    --lower_blue: (Optional) Lower HSV range for blue color used in chroma key processing, provided as three integers. Default: [80, 50, 80].
+    --upper_blue: (Optional) Upper HSV range for blue color used in chroma key processing, provided as three integers. Default: [130, 255, 255].
+    --lower_green: (Optional) Lower HSV range for green color used in chroma key processing, provided as three integers. Default: [35, 40, 40].
+    --upper_green: (Optional) Upper HSV range for green color used in chroma key processing, provided as three integers. Default: [85, 255, 255].
+    --robust_output_type: (Optional) Output type for the Robust Video Matting process (e.g., 'png' for image sequence, 'video' for full video). Default: png.
+    --robust_model: (Optional) The type of Robust Video Matting model to use. Choices: resnet50 or mobilenetv3. Default: resnet50.
+    --replace_output_video: (Optional) Path to the video output after color replacement is applied.
+    --output_composition: (Optional) Path to the AI-processed final video composition.
+    --processing_model: (Optional) Model for file processing. Options: 'cpu' or 'gpu' (cuda). Default: cpu.
 ```
     
 ### Description of Chroma Keying and Zoom Parameters:
