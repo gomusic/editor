@@ -4,12 +4,15 @@ import base64
 from cvzone.SelfiSegmentationModule import SelfiSegmentation
 import os
 import moviepy.editor as mp
-from video_processing import VideoProcessing
+from editor_config import EditorConfig
+from iterators.png_iterator import FrameIterator as FIter
+from iterators.video_iterator import VideoIterator as VIter
+
 
 # Initialize the segmentation model
 segmentor = SelfiSegmentation(model=0)
 
-global_video_processing = VideoProcessing()
+global_editor_config = EditorConfig()
 
 # Detection tracking
 consecutive_frame_count = 0
@@ -107,31 +110,36 @@ def replace_phone_screen(image, background_frame, required_frames_for_one_second
     global consecutive_frame_count
     global detected_for_required_period
     global start_zooming
-    global global_video_processing
+    global global_editor_config
 
     w = frame_width
     h = frame_height
 
-    frame = image[:, :, :3]  # BGR channels
-    overlay_color = image[:, :, :3]  # BGR channels
-    overlay_alpha = image[:, :, 3]  # Alpha channel
+    if image.shape[2] == 4:
+        frame = image[:, :, :3]
+        overlay_alpha = image[:, :, 3]
+    else:
+        frame = image
+        overlay_alpha = image[:, :, 1]
+
+    overlay_color = frame
 
     # Convert frame to HSV and apply blue mask
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    blue_mask = cv2.inRange(hsv_frame, global_video_processing.lower_blue, global_video_processing.upper_blue)
+    blue_mask = cv2.inRange(hsv_frame, global_editor_config.lower_blue, global_editor_config.upper_blue)
     blurred_mask = cv2.GaussianBlur(blue_mask, (5, 5), 0)
     kernel = np.ones((5, 5), np.uint8)
     blue_mask_cleaned = cv2.morphologyEx(blurred_mask, cv2.MORPH_CLOSE, kernel)
 
     contours, _ = cv2.findContours(blue_mask_cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    frame[blue_mask != 0] = [0, 0, 0]  # Remove the blue areas from the frame
+    frame[blue_mask != 0] = [0, 0, 0]
 
     # If no contours are detected, return the background with the overlay
     if not contours:
         main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
 
         # Apply green layer extraction to the main background after all operations
-        main_background = extract_green_layers(main_background, global_video_processing.lower_green, global_video_processing.upper_green)
+        main_background = extract_green_layers(main_background, global_editor_config.lower_green, global_editor_config.upper_green)
 
         return main_background
 
@@ -141,7 +149,7 @@ def replace_phone_screen(image, background_frame, required_frames_for_one_second
         main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
 
         # Apply green layer extraction to the main background after all operations
-        main_background = extract_green_layers(main_background, global_video_processing.lower_green, global_video_processing.upper_green)
+        main_background = extract_green_layers(main_background, global_editor_config.lower_green, global_editor_config.upper_green)
 
         return main_background
 
@@ -176,8 +184,8 @@ def replace_phone_screen(image, background_frame, required_frames_for_one_second
 
     # Check if zooming should start
     if start_zooming:
-        global_video_processing.zoom_scale += global_video_processing.zoom_increment
-        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, frame_width, frame_height, global_video_processing.zoom_scale)
+        global_editor_config.zoom_scale += global_editor_config.zoom_increment
+        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, frame_width, frame_height, global_editor_config.zoom_scale)
 
     # Check if the background frame is detected for more than 1 second
     if not start_zooming and consecutive_frame_count >= required_frames_for_one_second:
@@ -186,65 +194,55 @@ def replace_phone_screen(image, background_frame, required_frames_for_one_second
         print("Background detected for more than one second.")
 
     # Apply green layer extraction to the main background after all operations
-    main_background = extract_green_layers(main_background, global_video_processing.lower_green, global_video_processing.upper_green)
+    main_background = extract_green_layers(main_background, global_editor_config.lower_green, global_editor_config.upper_green)
 
     return main_background
 
 
 # Main chroma replace function
-def chroma_replace(video_processing):
-    global global_video_processing
-    global_video_processing = video_processing
-    video = cv2.VideoCapture(global_video_processing.original_video)
+def chroma_replace(editor_config):
+    global global_editor_config
+    global_editor_config = editor_config
+    video = cv2.VideoCapture(global_editor_config.original_video)
 
     if not os.path.exists('temp'):
         os.makedirs('temp')
 
-    if not os.path.exists(os.path.join('temp', f'{os.path.splitext(os.path.basename(global_video_processing.full_background))[0]}_temp.mp4')):
-        background_video = mp.VideoFileClip(global_video_processing.full_background).set_fps(int(video.get(cv2.CAP_PROP_FPS)))
-        temp_full_back_path = os.path.join('temp', f'{os.path.splitext(os.path.basename(global_video_processing.full_background))[0]}_temp.mp4')
+    if not os.path.exists(os.path.join('temp', f'{os.path.splitext(os.path.basename(global_editor_config.full_background))[0]}_temp.mp4')):
+        background_video = mp.VideoFileClip(global_editor_config.full_background).set_fps(int(video.get(cv2.CAP_PROP_FPS)))
+        temp_full_back_path = os.path.join('temp', f'{os.path.splitext(os.path.basename(global_editor_config.full_background))[0]}_temp.mp4')
         background_video.write_videofile(temp_full_back_path, codec='libx264')
     else:
         temp_full_back_path = os.path.join('temp',
-                                           f'{os.path.splitext(os.path.basename(global_video_processing.full_background))[0]}_temp.mp4')
+                                           f'{os.path.splitext(os.path.basename(global_editor_config.full_background))[0]}_temp.mp4')
 
     background_video = cv2.VideoCapture(temp_full_back_path)
 
     frame_width, frame_height = int(video.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(video.get(cv2.CAP_PROP_FPS))
 
-    output_video = cv2.VideoWriter(f'{global_video_processing.output_video_name}.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
+    output_video = cv2.VideoWriter(f'{global_editor_config.output_video_name}.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
     required_frames_for_one_second = fps
-    folder_path = f'./robust/{os.path.splitext(global_video_processing.original_video)[0]}_output_{global_video_processing.robust_output_type}'
+    folder_path = f'./robust/{os.path.splitext(global_editor_config.original_video)[0]}_output_{global_editor_config.robust_output_type}'
 
-    if global_video_processing.robust_output_type == "png":
-        file_pattern = '{:04d}.png'
-        num_files = len([f for f in os.listdir(folder_path) if f.endswith('.png')])
-
-        for i in range(num_files):
-            file_name = file_pattern.format(i)
-            file_path = os.path.join(folder_path, file_name)
-            image = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
-
-            if image is None:
-                print(f"Image {file_name} not found, skipping...")
-                continue
-
-            ret_bg, background_frame = background_video.read()
-            processed_frame = replace_phone_screen(image, background_frame, required_frames_for_one_second, frame_width, frame_height)
-            output_video.write(processed_frame)
-
-        video.release()
-        output_video.release()
-        cv2.destroyAllWindows()
-
-        while background_video.isOpened():
-            ret_bg, background_frame = background_video.read()
-            if not ret_bg:
-                break
-            main_background = cv2.resize(background_frame, (frame_width, frame_height))
-            output_video.write(main_background)
-
+    if global_editor_config.robust_output_type == 'png':
+        frame_iterator = FIter(path=folder_path)
+    elif global_editor_config.robust_output_type == 'video':
+        frame_iterator = VIter(path=folder_path)
     else:
-        # Implementation for robust_type other than 'png' can be added here
-        pass
+        raise TypeError("This type is not supported")
+
+    for frame in frame_iterator:
+        ret_bg, background_frame = background_video.read()
+        if not ret_bg:
+            # Rewind the background video to the start
+            background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ret_bg, background_frame = background_video.read()
+
+        processed_frame = replace_phone_screen(frame, background_frame, required_frames_for_one_second, frame_width,
+                                               frame_height)
+        output_video.write(processed_frame)
+
+    output_video.release()
+    background_video.release()
+    cv2.destroyAllWindows()

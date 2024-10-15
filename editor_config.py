@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-class VideoProcessing:
+class EditorConfig:
     """
     Attributes:
         original_video (str): Path to the original video file.
@@ -16,9 +16,10 @@ class VideoProcessing:
         lower_green (np.ndarray): Lower HSV threshold for green color.
         upper_green (np.ndarray): Upper HSV threshold for green color.
         output_type (str): Output type ("png" or "video").
-        model_type (str): Model type (resnet50 or mobilenetv3).
+        robust_model (str): Model type (resnet50 or mobilenetv3).
         replace_output_video (str): Path to the resulting video from replace_color
         output_composition (str): Path to AI-processed video
+        processing_model (str): Robust file processing model (cpu or gpu (cuda))
     """
 
     original_video: str = ''
@@ -36,6 +37,7 @@ class VideoProcessing:
     model_type: str = 'resnet50'
     replace_output_video: str = ''
     output_composition: str = ''
+    processing_model: str = 'cpu'
 
     def __init__(self, args=None):
         """
@@ -60,8 +62,9 @@ class VideoProcessing:
             self.lower_green = np.array(getattr(args, 'lower_green', self.lower_green))
             self.upper_green = np.array(getattr(args, 'upper_green', self.upper_green))
 
-            self.robust_output_type = getattr(args, 'output_type', self.robust_output_type)
-            self.model_type = getattr(args, 'model_type', self.model_type)
+            self.robust_output_type = getattr(args, 'robust_output_type', self.robust_output_type)
+            self.model_type = getattr(args, 'robust_model', self.model_type)
+            self.processing_model = getattr(args, 'processing_model', self.processing_model)
 
             self.replace_output_video = f'{os.path.splitext(os.path.basename(self.original_video))[0]}_replace_color.mp4'
             self.output_composition = f'./robust/{os.path.splitext(self.original_video)[0]}_output_{self.robust_output_type}'
