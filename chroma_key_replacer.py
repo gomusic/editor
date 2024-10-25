@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import base64
-from cvzone.SelfiSegmentationModule import SelfiSegmentation
 import os
 import moviepy.editor as mp
 import mediapipe
@@ -11,7 +10,6 @@ from iterators.video_iterator import VideoIterator as VIter
 
 
 # Initialize the segmentation model
-segmentor = SelfiSegmentation(model=0)
 mediapipe_selfie_segmentation = mediapipe.solutions.selfie_segmentation
 mediapipe_segmentor = mediapipe_selfie_segmentation.SelfieSegmentation(model_selection=1)
 
@@ -305,12 +303,8 @@ def chroma_replace(editor_config):
     for frame in frame_iterator:
         ret_bg, background_frame = background_video.read()
         if not ret_bg:
-            # Rewind the background video to the start
             background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
             ret_bg, background_frame = background_video.read()
-
-        # processed_frame = replace_phone_screen(frame, background_frame, required_frames_for_one_second, frame_width,
-        #                                        frame_height)
 
         if global_editor_config.robust_output_type == 'png':
             processed_frame = replace_phone_screen_png(frame, background_frame, required_frames_for_one_second,
