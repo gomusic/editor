@@ -6,7 +6,7 @@ from RobustVideoMatting.model import MattingNetwork
 from replace_color import replace
 from chroma_key_replacer import chroma_replace
 import numpy as np
-from editor_config import EditorConfig
+from configs.editor_config import EditorConfig
 from find_elements import get_video
 
 # Define the color ranges in HSV
@@ -95,7 +95,13 @@ def main():
     # Apply chroma key replacement to the video
     chroma_replace(editor_config)
 
-    # get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}.mp4', ['./src/share/big-share.png'])
+    data = [
+        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([255, 255, 255])},
+        {'path': './src/comment/big-comment.png', 'resize': {'min': 20, 'max': 200},
+         'color': np.array([255, 255, 255])},
+        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([45, 100, 242])}
+    ]
+    get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}.mp4', data)
 
 if __name__ == "__main__":
     main()

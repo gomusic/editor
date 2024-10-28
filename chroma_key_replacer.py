@@ -4,7 +4,7 @@ import base64
 import os
 import moviepy.editor as mp
 import mediapipe
-from editor_config import EditorConfig
+from configs.editor_config import EditorConfig
 from iterators.png_iterator import FrameIterator as FIter
 from iterators.video_iterator import VideoIterator as VIter
 

@@ -3,7 +3,7 @@ import base64
 import numpy as np
 from iterators.video_iterator import VideoIterator as VIter
 from typing import List, Tuple, Dict, Any
-from elements_config import ElementsConfig
+from configs.elements_config import ElementsConfig
 from classes.template import Template
 
 
@@ -37,7 +37,7 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
 
 def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
     """Creates a list of Template objects from given paths and settings."""
-    templates = [Template(path=item['path'], resize=item['resize'], colors=item['colors']) for item in templates_list]
+    templates = [Template(path=item['path'], resize=item['resize'], color=item['color']) for item in templates_list]
     return templates
 
 
@@ -102,7 +102,7 @@ def update_darkness(darkness: float, zoom_direction: int, darkening_step: float)
     return darkness
 
 
-def process_template(templates: List[Template], image_gray: np.ndarray, width: int, height: int, zoom_speed: float, max_zoom_factor: float):
+def process_template(templates: List[Template], frame: np.ndarray, width: int, height: int, zoom_speed: float, max_zoom_factor: float):
     """Selects the current active template, updates its state, and returns data for processing."""
 
     # Identify the first unfinished template
@@ -117,7 +117,7 @@ def process_template(templates: List[Template], image_gray: np.ndarray, width: i
     w, h = template_gray.shape[::-1]
 
     # Search for a match for the active template in the current frame
-    best_match, best_val = find_best_match_full(image_gray, template_gray, min_size=active_template.resize['min'], max_size=active_template.resize['max'])
+    best_match, best_val = find_best_match_full(frame, template_gray, min_size=active_template.resize['min'], max_size=active_template.resize['max'], color=active_template.color)
 
     print('best match', best_match)
     print('best val', best_val)
@@ -155,11 +155,10 @@ def frame_to_base64(frame):
 def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
     """Main function for searching elements in the current frame using defined templates."""
     height, width, _ = frame.shape
-    image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert current frame to grayscale for processing
 
     # Get active template and processing data
     active_template, processing_data, state = process_template(
-        templates, image_gray, width, height, config.zoom_speed, config.max_zoom_factor
+        templates, frame, width, height, config.zoom_speed, config.max_zoom_factor
     )
 
     # If all templates are processed, return the original frame
@@ -192,10 +191,13 @@ def find_best_match_near_previous(image_gray: np.ndarray, template_gray: np.ndar
     return (max_loc, best_match_info["previous_best_scale"]), max_val  # Return match location and value
 
 
-def find_best_match_full(image_gray: np.ndarray, template_gray: np.ndarray, min_size: int, max_size: int) -> Tuple:
+def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size: int, max_size: int,
+                         color: np.ndarray) -> Tuple:
     """Finds the best match for a template across a range of scales based on specified min and max sizes."""
     best_match, best_val = None, 0  # Initialize best match and value
     w, h = template_gray.shape[::-1]
+
+    image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert current frame to grayscale for processing
 
     # Create scales based on the min and max sizes with a step of 5 pixels
     scales = np.arange(min_size / min(w, h), max_size / min(w, h) + 0.1, 0.05)  # Adjust step if needed
@@ -214,14 +216,40 @@ def find_best_match_full(image_gray: np.ndarray, template_gray: np.ndarray, min_
             best_val = max_val
             best_match = (max_loc, scale)  # Store best match location and scale
 
-    return best_match, best_val  # Return best match and value
+    # If a best match is found, check the color on the original frame
+    if best_match is not None:
+        top_left = best_match[0]
+        # Extract the region of interest (ROI) from the original frame
+        roi = frame[top_left[1]:top_left[1] + int(h * best_match[1]), top_left[0]:top_left[0] + int(w * best_match[1])]
+
+        # Calculate the average color of the ROI from the original frame
+        avg_color = cv2.mean(roi)[:3]  # Get average color (B, G, R)
+        print(avg_color)
+        # Check if the average color is within the specified tolerance
+        if is_color_within_tolerance(avg_color, color):
+            return best_match, best_val  # Return best match and value if color matches
+        else:
+            return None, 0  # Return None if color does not match
+
+    return best_match, best_val  # Return best match and value if no color checking was performed
+
+
+def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray,
+                              tolerance: int = 10) -> bool:
+    """Checks if the average color is within the specified tolerance of the target color."""
+    for avg, target in zip(avg_color, target_color):
+        lower_bound = max(0, target - tolerance)
+        upper_bound = min(255, target + tolerance)
+        if not (lower_bound <= avg <= upper_bound):
+            return False  # Return false if any channel is out of bounds
+    return True  # Return true if all channels are within bounds
 
 
 if __name__ == ('__main__'):
     data = [
-        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'colors': np.array([255, 255, 255])},
-        {'path': './src/comment/big-comment.png', 'resize': {'min': 20, 'max': 200}, 'colors': np.array([255, 255, 255])},
-        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'colors': np.array([45, 100, 242])}
+        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([111, 114, 122])},
+        {'path': './src/comment/big-comment.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([111, 114, 122])},
+        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([45, 100, 242])}
     ]
-    get_video(f'elements.mp4', f'test3.mp4', data)
+    get_video(f'elements.mp4', f'test4.mp4', data)
     pass

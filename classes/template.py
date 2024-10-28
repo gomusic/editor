@@ -2,10 +2,10 @@ from typing import Dict
 import numpy as np
 
 class Template:
-    def __init__(self, path: str, resize: Dict[str, int], colors: np.ndarray):
+    def __init__(self, path: str, resize: Dict[str, int], color: np.ndarray):
         self.path = path
         self.resize = resize
-        self.colors = colors
+        self.color = color
 
         # Инициализация закрытых атрибутов состояния
         self._zoom_factor = 1.0

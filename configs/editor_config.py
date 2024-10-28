@@ -25,7 +25,7 @@ class EditorConfig:
     original_video: str = ''
     full_background: str = ''
     phone_background: str = ''
-    model_path: str = 'rvm_resnet50.pth'
+    model_path: str = '../rvm_resnet50.pth'
     zoom_scale: float = 0.2
     zoom_increment: float = 1
     output_video_name: str = 'output_video'
