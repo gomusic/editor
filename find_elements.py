@@ -1,201 +1,227 @@
 import cv2
-import mediapipe as mp
+import base64
 import numpy as np
 from iterators.video_iterator import VideoIterator as VIter
+from typing import List, Tuple, Dict, Any
+from elements_config import ElementsConfig
+from classes.template import Template
 
 
-iterator = VIter('elements.mp4')
+config = ElementsConfig()
 
+def get_video(input_video_path: str, output_video_path: str, templates_list: List[Dict[str, Any]]):
+    iterator = VIter(input_video_path)
 
-def zoom():
-    # Загружаем шаблон
-    template = cv2.imread('./src/share/big-share.png')
-
-    # Получаем ширину и высоту первого кадра для настроек видео
+    # Get the width and height of the first frame for video settings
     first_frame = next(iterator)
     height, width, _ = first_frame.shape
 
-    # Настраиваем видеозапись (имя файла, кодек, FPS, размер кадра)
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Кодек для .mp4
-    output_video = cv2.VideoWriter('output_video_contours_share_zoom_test.mp4', fourcc, 20.0, (width, height))
+    # Set up video recording (filename, codec, FPS, frame size)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for .mp4
+    output_video = cv2.VideoWriter(output_video_path, fourcc, 20.0, (width, height))
 
-    # Инициализация переменных
-    previous_best_match = None
-    previous_best_val = 0
-    previous_best_scale = 1.0
-    search_window_size = 50
-    count = 0
+    # Initialize templates as instances of Template class
+    templates = get_templates(templates_list)
 
-    # Настройки затемнения
-    max_darkness = 0.8
+    for count_frames, frame in enumerate(iterator):
+        print('Frame: ', count_frames)
 
-    # Настройки зуммирования
-    zoom_start_frame = 15
-    zoom_duration = 30
-    max_zoom_factor = 5.0
+        # Process frame only if the number of frames skipped is less than the current count
+        if config.skip_frames <= count_frames:
+            frame = elements_search(frame, templates)
 
-    # Добавляем флаг для обратного зуммирования и флаг окончания зума
-    zoom_reverse_duration = 20  # Количество кадров для обратного зуммирования
-
-    for frame in iterator:
-        print(count)
-        if True:
-            image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-
-            _, template_thresh = cv2.threshold(template_gray, 127, 255, cv2.THRESH_BINARY)
-            contours, _ = cv2.findContours(template_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            w, h = template_gray.shape[::-1]
-
-            # Поиск шаблона
-            if previous_best_val > 0.7:
-                best_match = None
-                best_val = 0
-
-                previous_x, previous_y = previous_best_match[0]
-
-                x_min = max(0, previous_x - search_window_size)
-                x_max = min(image_gray.shape[1] - w, previous_x + search_window_size)
-                y_min = max(0, previous_y - search_window_size)
-                y_max = min(image_gray.shape[0] - h, previous_y + search_window_size)
-
-                roi = image_gray[y_min:y_max, x_min:x_max]
-
-                resized_template = cv2.resize(template_gray,
-                                              (int(w * previous_best_scale), int(h * previous_best_scale)))
-
-                if resized_template.shape[0] <= roi.shape[0] and resized_template.shape[1] <= roi.shape[1]:
-                    result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)
-                    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-
-                    if max_val > best_val:
-                        best_val = max_val
-                        best_match = (max_loc, previous_best_scale)
-
-                if best_val < 0.7:
-                    previous_best_val = 0
-                    continue
-
-                previous_best_match = (best_match[0][0] + x_min, best_match[0][1] + y_min)
-                previous_best_val = best_val
-
-            else:
-                best_match = None
-                best_val = 0
-
-                for scale in np.linspace(0.8, 1.2, 20):
-                    resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))
-
-                    if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[
-                        1]:
-                        continue
-
-                    result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)
-                    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-
-                    if max_val > best_val:
-                        best_val = max_val
-                        best_match = (max_loc, scale)
-
-                previous_best_match = best_match
-                previous_best_val = best_val
-                previous_best_scale = best_match[1]
-
-            threshold = 0.8
-
-            if best_match and best_val >= threshold:
-                max_loc, scale = best_match
-                top_left = max_loc
-                w_scaled, h_scaled = int(w * scale), int(h * scale)
-
-                mask = np.ones_like(frame, dtype=np.uint8) * 255
-
-
-
-                # Плавное зуммирование (вход в зум)
-                if zoom_start_frame <= count < (zoom_start_frame + zoom_duration):
-
-                    # Плавное затемнение
-                    alpha = (count / zoom_duration) * max_darkness
-                    alpha = min(alpha, max_darkness)
-
-                    if alpha > 0:
-                        darkened_frame = cv2.addWeighted(frame,1 - alpha, np.zeros_like(frame), alpha, 0)
-
-                        for contour in contours:
-                            scaled_contour = contour * scale
-                            scaled_contour += np.array(top_left)
-
-                            cv2.drawContours(mask, [scaled_contour.astype(int)], -1, (0, 0, 0), thickness=cv2.FILLED)
-
-                        frame = np.where(mask == 0, frame, darkened_frame)
-
-                    zoom_factor = 1.0 + (max_zoom_factor - 1.0) * (((count - zoom_start_frame) / zoom_duration) ** 2)
-
-                    center_x = top_left[0] + w_scaled // 2
-                    center_y = top_left[1] + h_scaled // 2
-
-                    new_w = int(width / zoom_factor)
-                    new_h = int(height / zoom_factor)
-
-                    new_top_left_x = max(0, center_x - new_w // 2)
-                    new_top_left_y = max(0, center_y - new_h // 2)
-
-                    new_bottom_right_x = min(new_top_left_x + new_w, width)
-                    new_bottom_right_y = min(new_top_left_y + new_h, height)
-
-                    roi_zoomed = frame[new_top_left_y:new_bottom_right_y, new_top_left_x:new_bottom_right_x]
-                    frame = cv2.resize(roi_zoomed, (width, height))
-
-                # Когда зум достиг максимума
-                elif count == zoom_start_frame + zoom_duration:
-                    last_frame = frame.copy()  # Сохраняем последний кадр
-                    reverse_count = 0  # Счётчик обратного зума
-
-                    # Обратное зуммирование
-                    while reverse_count < zoom_reverse_duration:
-                        reverse_zoom_factor = max_zoom_factor - (max_zoom_factor - 1.0) * (
-                                    reverse_count / zoom_reverse_duration)
-                        zoom_factor = reverse_zoom_factor
-
-                        center_x = top_left[0] + w_scaled // 2
-                        center_y = top_left[1] + h_scaled // 2
-
-                        new_w = int(width / zoom_factor)
-                        new_h = int(height / zoom_factor)
-
-                        new_top_left_x = max(0, center_x - new_w // 2)
-                        new_top_left_y = max(0, center_y - new_h // 2)
-
-                        new_bottom_right_x = min(new_top_left_x + new_w, width)
-                        new_bottom_right_y = min(new_top_left_y + new_h, height)
-
-                        roi_zoomed = last_frame[new_top_left_y:new_bottom_right_y, new_top_left_x:new_bottom_right_x]
-                        frame = cv2.resize(roi_zoomed, (width, height))
-
-                        if reverse_count < zoom_reverse_duration:
-                            reverse_alpha = max_darkness - (reverse_count / zoom_reverse_duration) * max_darkness
-                        else:
-                            reverse_alpha = 0
-
-                        if reverse_alpha < max_darkness:
-                            brightened_frame = cv2.addWeighted(frame, 1 - reverse_alpha, np.zeros_like(frame),
-                                                               reverse_alpha, 0)
-
-                            # Объединение осветленного фрейма с исходным на основе маски
-                            frame = np.where(mask == 0, frame, brightened_frame)
-
-                        reverse_count += 1
-                        output_video.write(frame)
-
-                output_video.write(frame)
-                print('Еще работаю. Фрейм: ', count)
-        count += 1
+        output_video.write(frame)
 
     output_video.release()
-    print("Video saved as 'output_video_contours_share_zoom_test.mp4'.")
+
+
+def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
+    """Creates a list of Template objects from given paths and settings."""
+    templates = [Template(path=item['path'], resize=item['resize'], colors=item['colors']) for item in templates_list]
+    return templates
+
+
+def apply_zoom(frame: np.ndarray, center: Tuple[int, int], zoom_factor: float, width: int, height: int) -> np.ndarray:
+    """Applies zoom to the frame around a specified center."""
+    center_x, center_y = center
+    new_w, new_h = int(width / zoom_factor), int(height / zoom_factor)
+
+    # Position the zoom area based on the center
+    new_top_left_x = max(0, center_x - new_w // 2)
+    new_top_left_y = max(0, center_y - new_h // 2)
+    new_bottom_right_x = min(new_top_left_x + new_w, width)
+    new_bottom_right_y = min(new_top_left_y + new_h, height)
+
+    # Crop and resize the frame to apply zoom
+    roi_zoomed = frame[new_top_left_y:new_bottom_right_y, new_top_left_x:new_bottom_right_x]
+    zoomed_frame = cv2.resize(roi_zoomed, (width, height))
+
+    return zoomed_frame
+
+
+def update_zoom(zoom_factor: float, zoom_direction: int, zoom_speed: float, max_zoom_factor: float) -> Tuple[float, int]:
+    """Updates the zoom factor and its direction."""
+    zoom_factor += zoom_direction * zoom_speed
+
+    # Check for zoom limits
+    if zoom_factor >= max_zoom_factor:
+        zoom_factor = max_zoom_factor
+        zoom_direction = -1
+    elif zoom_factor <= 1.0:
+        zoom_factor = 1.0
+        zoom_direction = 1
+
+    return zoom_factor, zoom_direction
+
+
+def apply_darkening(frame: np.ndarray, template_gray: np.ndarray, scale: float, top_left: Tuple[int, int], darkness: float) -> np.ndarray:
+    """Applies darkening around the area of the template."""
+    if darkness <= 0:
+        return frame
+
+    # Create a darkened version of the frame based on the darkness level
+    darkened_frame = cv2.addWeighted(frame, 1 - darkness, np.zeros_like(frame), darkness, 0)
+    mask = np.ones_like(frame, dtype=np.uint8) * 255
+
+    # Find contours and create a darkened area
+    contours, _ = cv2.findContours(template_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        scaled_contour = contour * scale
+        scaled_contour += np.array(top_left)
+        cv2.drawContours(mask, [scaled_contour.astype(int)], -1, (0, 0, 0), thickness=cv2.FILLED)
+
+    # Apply the mask to combine the original frame and the darkened frame
+    frame = np.where(mask == 0, frame, darkened_frame)
+    return frame
+
+
+def update_darkness(darkness: float, zoom_direction: int, darkening_step: float) -> float:
+    """Updates the level of darkness based on the zoom direction."""
+    darkness += zoom_direction * darkening_step
+    darkness = min(max(darkness, 0.0), 0.8)  # Clamp darkness between 0 and 0.8
+    return darkness
+
+
+def process_template(templates: List[Template], image_gray: np.ndarray, width: int, height: int, zoom_speed: float, max_zoom_factor: float):
+    """Selects the current active template, updates its state, and returns data for processing."""
+
+    # Identify the first unfinished template
+    active_template = next((template for template in templates if not template.completed), None)
+
+    # If all templates are finished, return None
+    if active_template is None:
+        return None, None, None
+
+    # Retrieve template details
+    template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)
+    w, h = template_gray.shape[::-1]
+
+    # Search for a match for the active template in the current frame
+    best_match, best_val = find_best_match_full(image_gray, template_gray, min_size=active_template.resize['min'], max_size=active_template.resize['max'])
+
+    print('best match', best_match)
+    print('best val', best_val)
+
+    # If a match is found, update its state
+    if best_match and best_val >= config.threshold:
+        print('Great!')
+        top_left = best_match[0]
+        scale = best_match[1]
+        w_scaled, h_scaled = int(w * scale), int(h * scale)
+        center = (top_left[0] + w_scaled // 2, top_left[1] + h_scaled // 2)
+
+        # Update zoom and darkness based on current state
+        active_template.zoom_factor, active_template.zoom_direction = update_zoom(
+            active_template.zoom_factor, active_template.zoom_direction, zoom_speed, max_zoom_factor
+        )
+        darkening_step = 0.8 / ((max_zoom_factor - 1) / zoom_speed)
+        active_template.darkness = update_darkness(active_template.darkness, active_template.zoom_direction, darkening_step)
+
+        # Check if the template processing is complete
+        if active_template.zoom_factor == 1.0 and active_template.zoom_direction == 1:
+            active_template.completed = True  # Mark as completed if zoom is reset
+
+        # Return relevant data for processing
+        return active_template, (top_left, scale, center, active_template.darkness), active_template
+    else:
+        return active_template, None, active_template
+
+
+def frame_to_base64(frame):
+    _, buffer = cv2.imencode('.jpg', frame)
+    return base64.b64encode(buffer).decode('utf-8')
+
+
+def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
+    """Main function for searching elements in the current frame using defined templates."""
+    height, width, _ = frame.shape
+    image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert current frame to grayscale for processing
+
+    # Get active template and processing data
+    active_template, processing_data, state = process_template(
+        templates, image_gray, width, height, config.zoom_speed, config.max_zoom_factor
+    )
+
+    # If all templates are processed, return the original frame
+    if active_template is None or processing_data is None:
+        return frame
+
+    # Process the frame with the current template
+    top_left, scale, center, darkness = processing_data
+    template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)  # Convert template to grayscale
+    frame = apply_darkening(frame, template_gray, scale, top_left, darkness)  # Apply darkening effect
+    frame = apply_zoom(frame, center, active_template.zoom_factor, width, height)  # Apply zoom effect
+
+    return frame
+
+
+def find_best_match_near_previous(image_gray: np.ndarray, template_gray: np.ndarray, best_match_info: Dict, search_window_size: int) -> Tuple:
+    """Finds the best match for the template within a specified search window near the previous best match."""
+    w, h = template_gray.shape[::-1]
+    previous_x, previous_y = best_match_info["previous_best_match"][0]
+    # Define search window around the previous match
+    x_min = max(0, previous_x - search_window_size)
+    x_max = min(image_gray.shape[1] - w, previous_x + search_window_size)
+    y_min = max(0, previous_y - search_window_size)
+    y_max = min(image_gray.shape[0] - h, previous_y + search_window_size)
+    roi = image_gray[y_min:y_max, x_min:x_max]  # Region of Interest (ROI) for matching
+    # Resize template based on previous scale
+    resized_template = cv2.resize(template_gray, (int(w * best_match_info["previous_best_scale"]), int(h * best_match_info["previous_best_scale"])))
+    result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)  # Template matching
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
+    return (max_loc, best_match_info["previous_best_scale"]), max_val  # Return match location and value
+
+
+def find_best_match_full(image_gray: np.ndarray, template_gray: np.ndarray, min_size: int, max_size: int) -> Tuple:
+    """Finds the best match for a template across a range of scales based on specified min and max sizes."""
+    best_match, best_val = None, 0  # Initialize best match and value
+    w, h = template_gray.shape[::-1]
+
+    # Create scales based on the min and max sizes with a step of 5 pixels
+    scales = np.arange(min_size / min(w, h), max_size / min(w, h) + 0.1, 0.05)  # Adjust step if needed
+
+    for scale in scales:
+        resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))  # Resize template
+
+        # Skip if resized template is larger than the image
+        if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[1]:
+            continue
+
+        result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)  # Perform template matching
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
+
+        if max_val > best_val:  # Update best match if current one is better
+            best_val = max_val
+            best_match = (max_loc, scale)  # Store best match location and scale
+
+    return best_match, best_val  # Return best match and value
 
 
 if __name__ == ('__main__'):
-    zoom()
+    data = [
+        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'colors': np.array([255, 255, 255])},
+        {'path': './src/comment/big-comment.png', 'resize': {'min': 20, 'max': 200}, 'colors': np.array([255, 255, 255])},
+        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'colors': np.array([45, 100, 242])}
+    ]
+    get_video(f'elements.mp4', f'test3.mp4', data)
+    pass

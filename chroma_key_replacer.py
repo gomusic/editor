@@ -296,7 +296,7 @@ def chroma_replace(editor_config):
     if global_editor_config.robust_output_type == 'png':
         frame_iterator = FIter(path=folder_path)
     elif global_editor_config.robust_output_type == 'video':
-        frame_iterator = VIter(path=folder_path)
+        frame_iterator = VIter(path=os.path.join(folder_path, 'com.mp4'))
     else:
         raise TypeError("This type is not supported")
 
@@ -315,6 +315,14 @@ def chroma_replace(editor_config):
                                                          frame_width, frame_height)
 
         output_video.write(processed_frame)
+
+    while background_video.isOpened():
+        ret_bg, background_frame = background_video.read()
+        if not ret_bg:
+            break
+        main_background = cv2.resize(background_frame, (frame_width, frame_height))
+        output_video.write(main_background)
+
 
     output_video.release()
     background_video.release()

@@ -7,6 +7,7 @@ from replace_color import replace
 from chroma_key_replacer import chroma_replace
 import numpy as np
 from editor_config import EditorConfig
+from find_elements import get_video
 
 # Define the color ranges in HSV
 lower_blue = np.array([80, 50, 80])
@@ -93,6 +94,8 @@ def main():
 
     # Apply chroma key replacement to the video
     chroma_replace(editor_config)
+
+    # get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}.mp4', ['./src/share/big-share.png'])
 
 if __name__ == "__main__":
     main()
