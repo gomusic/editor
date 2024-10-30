@@ -1,4 +1,9 @@
 .idea
+__pycache__
 .DS_Store
 rvm_resnet50.pth
-sequence
+robust
+*.mp4
+_lab
+image_with_link.jpg
+readme_ideas.md
