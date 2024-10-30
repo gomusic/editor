@@ -59,7 +59,7 @@ def frame_to_base64(frame):
 
 
 # Function to apply zoom towards the center of the background
-def apply_zoom_to_center(main_frame, background_rect, background_frame, frame_width, frame_height, zoom_scale):
+def apply_zoom_to_center(main_frame, background_rect, background_frame, phone_frame, frame_width, frame_height, zoom_scale):
     h, w = main_frame.shape[:2]  # Main frame height and width
     rect_x, rect_y, rect_w, rect_h = background_rect  # Background rect position and dimensions
 
@@ -76,7 +76,7 @@ def apply_zoom_to_center(main_frame, background_rect, background_frame, frame_wi
 
     # Check if the zoomed background frame is large enough to cover the detected area
     if new_bg_w >= frame_width or new_bg_h >= frame_height:
-        return background_frame
+        return phone_frame
 
     # Calculate the coordinates for cropping the zoomed-in frame
     x1 = max(0, center_x - new_w // 2)
@@ -186,7 +186,7 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
     # Check if zooming should start
     if start_zooming:
         global_editor_config.zoom_scale += global_editor_config.zoom_increment
-        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, frame_width,
+        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, phone_frame, frame_width,
                                                frame_height, global_editor_config.zoom_scale)
 
     # Check if the background frame is detected for more than 1 second
@@ -292,10 +292,7 @@ def apply_blur(frame, blur_radius=10):
     return np.array(img)
 
 
-def create_resized_video(source_path, output_dir, fps, target_width, target_height, duration):
-    if duration is None:
-        raise ValueError("The main clip duration must be specified.")
-
+def create_resized_video(source_path, output_dir, fps, target_width, target_height, duration=None):
     base_name = os.path.splitext(os.path.basename(source_path))[0]
     temp_path = os.path.join(output_dir, f"{base_name}_temp.mp4")
 
@@ -322,25 +319,31 @@ def create_resized_video(source_path, output_dir, fps, target_width, target_heig
         # Create blurred background
         background_clip = video_clip.fl_image(lambda frame: apply_blur(frame, blur_radius=10))
 
+        # If duration is specified, adjust video duration
+        if duration:
+            # If video duration is shorter, loop it to match the target duration
+            if video_clip.duration < duration:
+                loops_needed = int(duration // video_clip.duration) + 1
+                video_clip = mp.concatenate_videoclips([video_clip] * loops_needed)
+            video_clip = video_clip.subclip(0, duration)
+        else:
+            # If no duration is specified, keep original duration
+            duration = video_clip.duration
+
         # Adjust background to match the main video duration
         if background_clip.duration < duration:
-            # Loop the background video if it's shorter
             loops_needed = int(duration // background_clip.duration) + 1
             background_clip = mp.concatenate_videoclips([background_clip] * loops_needed)
             background_clip = background_clip.subclip(0, duration)
         else:
-            # Trim the background video if it's longer
             background_clip = background_clip.subclip(0, duration)
-
-        # Adjust the main video clip to match the exact duration
-        video_clip = video_clip.subclip(0, duration)
 
         # Combine background and video, setting the exact duration for final video
         final_video = mp.CompositeVideoClip(
             [background_clip, video_clip.set_position("center")],
             size=(target_width, target_height)
         ).set_duration(duration)
-        
+
         # Save the temporary video file
         final_video.write_videofile(temp_path, codec='libx264', fps=fps)
 
@@ -363,7 +366,7 @@ def chroma_replace(editor_config):
 
     # Paths for full background and phone background videos
     temp_full_back_path = create_resized_video(global_editor_config.full_background, 'temp', fps, target_width=frame_width, target_height=frame_height, duration=duration)
-    temp_phone_back_path = create_resized_video(global_editor_config.phone_background, 'temp', fps, target_width=frame_width, target_height=frame_height, duration=duration)
+    temp_phone_back_path = create_resized_video(global_editor_config.phone_background, 'temp', fps, target_width=frame_width, target_height=frame_height)
     # temp_full_back_path = create_temp_video(global_editor_config.full_background, 'temp', fps)
     # temp_phone_back_path = create_temp_video(global_editor_config.phone_background, 'temp', fps)
     background_phone_video = cv2.VideoCapture(temp_phone_back_path)

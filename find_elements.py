@@ -5,6 +5,7 @@ from iterators.video_iterator import VideoIterator as VIter
 from typing import List, Tuple, Dict, Any
 from configs.elements_config import ElementsConfig
 from classes.template import Template
+from get_color_range import get_color
 
 
 config = ElementsConfig()
@@ -33,6 +34,15 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
         output_video.write(frame)
 
     output_video.release()
+
+
+def get_frame_for_color(input_video_path: str):
+    iterator = VIter(input_video_path)
+
+    # Get the width and height of the first frame for video settings
+    first_frame = next(iterator)
+
+    get_color(first_frame)
 
 
 def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
@@ -219,12 +229,21 @@ def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size:
     # If a best match is found, check the color on the original frame
     if best_match is not None:
         top_left = best_match[0]
-        # Extract the region of interest (ROI) from the original frame
-        roi = frame[top_left[1]:top_left[1] + int(h * best_match[1]), top_left[0]:top_left[0] + int(w * best_match[1])]
 
-        # Calculate the average color of the ROI from the original frame
-        avg_color = cv2.mean(roi)[:3]  # Get average color (B, G, R)
-        print(avg_color)
+        # Resize the template to the scale of the best match for masking purposes
+        resized_template = cv2.resize(template_gray, (int(w * best_match[1]), int(h * best_match[1])))
+
+        # Create a binary mask where the template is white (1) and the background is black (0)
+        _, mask = cv2.threshold(resized_template, 1, 255, cv2.THRESH_BINARY)
+
+        # Extract the region of interest (ROI) from the original frame
+        roi = frame[top_left[1]:top_left[1] + resized_template.shape[0],
+              top_left[0]:top_left[0] + resized_template.shape[1]]
+
+        # Calculate the average color of the ROI using the mask to exclude the background
+        avg_color = cv2.mean(roi, mask=mask.astype(np.uint8))[:3]  # Get average color (B, G, R) within the masked area
+        print("Average color in matched area:", avg_color)
+
         # Check if the average color is within the specified tolerance
         if is_color_within_tolerance(avg_color, color):
             return best_match, best_val  # Return best match and value if color matches
@@ -234,16 +253,20 @@ def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size:
     return best_match, best_val  # Return best match and value if no color checking was performed
 
 
-def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray,
-                              tolerance: int = 10) -> bool:
+def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray) -> bool:
     """Checks if the average color is within the specified tolerance of the target color."""
     for avg, target in zip(avg_color, target_color):
-        lower_bound = max(0, target - tolerance)
-        upper_bound = min(255, target + tolerance)
+        lower_bound = max(0, target - config.tolerance)
+        upper_bound = min(255, target + config.tolerance)
         if not (lower_bound <= avg <= upper_bound):
             return False  # Return false if any channel is out of bounds
     return True  # Return true if all channels are within bounds
 
 
 if __name__ == ('__main__'):
-    pass
+    # get_frame_for_color('temp/back_tiktok_temp.mp4')
+    data = [
+        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([235, 235, 235])},
+        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([235, 235, 235])}
+    ]
+    get_video(f'back_tiktok.mp4', f'back_test_1.mp4', data)

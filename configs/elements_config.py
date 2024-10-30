@@ -12,3 +12,4 @@ class ElementsConfig:
         self.zoom_speed = 0.2
         self.max_zoom_factor = 5
         self.threshold = 0.8
+        self.tolerance = 30
