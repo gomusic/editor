@@ -7,12 +7,14 @@ from configs.elements_config import ElementsConfig
 from classes.template import Template
 from get_color_range import get_color
 
-
+best_match = 0
 config = ElementsConfig()
 
 def get_video(input_video_path: str, output_video_path: str, templates_list: List[Dict[str, Any]]):
     iterator = VIter(input_video_path)
 
+    # Initialize templates as instances of Template class
+    templates = get_templates(templates_list)
     # Get the width and height of the first frame for video settings
     first_frame = next(iterator)
     height, width, _ = first_frame.shape
@@ -20,9 +22,6 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
     # Set up video recording (filename, codec, FPS, frame size)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for .mp4
     output_video = cv2.VideoWriter(output_video_path, fourcc, 20.0, (width, height))
-
-    # Initialize templates as instances of Template class
-    templates = get_templates(templates_list)
 
     for count_frames, frame in enumerate(iterator):
         print('Frame: ', count_frames)
@@ -114,7 +113,7 @@ def update_darkness(darkness: float, zoom_direction: int, darkening_step: float)
 
 def process_template(templates: List[Template], frame: np.ndarray, width: int, height: int, zoom_speed: float, max_zoom_factor: float):
     """Selects the current active template, updates its state, and returns data for processing."""
-
+    global best_match
     # Identify the first unfinished template
     active_template = next((template for template in templates if not template.completed), None)
 
@@ -125,9 +124,8 @@ def process_template(templates: List[Template], frame: np.ndarray, width: int, h
     # Retrieve template details
     template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)
     w, h = template_gray.shape[::-1]
-
     # Search for a match for the active template in the current frame
-    best_match, best_val = find_best_match_full(frame, template_gray, min_size=active_template.resize['min'], max_size=active_template.resize['max'], color=active_template.color)
+    best_val = find_best_match_full(frame, template_gray, min_size=active_template.resize['min'], max_size=active_template.resize['max'], color=active_template.color)
 
     print('best match', best_match)
     print('best val', best_val)
@@ -184,6 +182,47 @@ def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
     return frame
 
 
+def increase_brightness(img, value=30):
+    # Check if the image is grayscale
+    if len(img.shape) == 2 or img.shape[2] == 1:
+        # For grayscale, just add the brightness value directly
+        img = cv2.add(img, np.array([value], dtype=np.uint8))
+        img[img > 255] = 255  # Clip values to max 255
+    elif img.shape[2] == 4:  # Check if the image has an alpha channel
+        # Separate the RGB and alpha channels
+        bgr = img[:, :, :3]
+        alpha = img[:, :, 3]
+
+        # Convert the RGB channels to HSV
+        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
+
+        # Increase the brightness on the value channel
+        lim = 255 - value
+        v[v > lim] = 255
+        v[v <= lim] += value
+
+        # Merge back the HSV channels and convert to BGR
+        final_hsv = cv2.merge((h, s, v))
+        bright_bgr = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+
+        # Combine the brightened BGR channels with the original alpha channel
+        img = cv2.merge((bright_bgr, alpha))
+    elif img.shape[2] == 3:
+        # Process as a regular BGR image
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(hsv)
+
+        lim = 255 - value
+        v[v > lim] = 255
+        v[v <= lim] += value
+
+        final_hsv = cv2.merge((h, s, v))
+        img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+    else:
+        raise ValueError("Unsupported number of channels.")
+
+    return img
 def find_best_match_near_previous(image_gray: np.ndarray, template_gray: np.ndarray, best_match_info: Dict, search_window_size: int) -> Tuple:
     """Finds the best match for the template within a specified search window near the previous best match."""
     w, h = template_gray.shape[::-1]
@@ -200,23 +239,32 @@ def find_best_match_near_previous(image_gray: np.ndarray, template_gray: np.ndar
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
     return (max_loc, best_match_info["previous_best_scale"]), max_val  # Return match location and value
 
-
 def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size: int, max_size: int,
-                         color: np.ndarray) -> Tuple:
+                         color: np.ndarray) -> float | int:
     """Finds the best match for a template across a range of scales based on specified min and max sizes."""
-    best_match, best_val = None, 0  # Initialize best match and value
+    global best_match
+    best_val, last_scale = 0, 0  # Initialize best match and value
     w, h = template_gray.shape[::-1]
 
     image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert current frame to grayscale for processing
-
+    # image_gray = increase_brightness(image_gray, value=30)
+    if best_match:
+        print('Popali')
+        scales = [best_match[1]]
     # Create scales based on the min and max sizes with a step of 5 pixels
-    scales = np.arange(min_size / min(w, h), max_size / min(w, h) + 0.1, 0.05)  # Adjust step if needed
+    else:
+        print('Ne Popali')
+        scales = np.arange(min_size / min(w, h), max_size / min(w, h) + 0.1, 0.05)  # Adjust step if needed
 
     for scale in scales:
-        resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))  # Resize template
+        if last_scale:
+            resized_template = cv2.resize(template_gray, (int(w * last_scale), int(h * last_scale)))
+        else:
+            resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))  # Resize template
 
         # Skip if resized template is larger than the image
         if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[1]:
+            last_scale = 0
             continue
 
         result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)  # Perform template matching
@@ -244,13 +292,7 @@ def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size:
         avg_color = cv2.mean(roi, mask=mask.astype(np.uint8))[:3]  # Get average color (B, G, R) within the masked area
         print("Average color in matched area:", avg_color)
 
-        # Check if the average color is within the specified tolerance
-        if is_color_within_tolerance(avg_color, color):
-            return best_match, best_val  # Return best match and value if color matches
-        else:
-            return None, 0  # Return None if color does not match
-
-    return best_match, best_val  # Return best match and value if no color checking was performed
+    return best_val  # Return best match and value if no color checking was performed
 
 
 def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray) -> bool:
@@ -263,10 +305,31 @@ def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_colo
     return True  # Return true if all channels are within bounds
 
 
+def is_mostly_white(frame, sensitivity=90, threshold=0.8):
+    # Define white color range in HSV
+    lower_white = np.array([0, 0, 255 - sensitivity])
+    upper_white = np.array([255, sensitivity, 255])
+
+    # Convert the frame to HSV
+    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Create a mask for white pixels within the specified range
+    white_mask = cv2.inRange(hsv_frame, lower_white, upper_white)
+
+    # Calculate the percentage of white pixels in the frame
+    white_pixels = np.sum(white_mask == 255)
+    total_pixels = frame.shape[0] * frame.shape[1]
+    white_ratio = white_pixels / total_pixels
+
+    # Check if the white ratio meets the threshold
+    return white_ratio >= threshold
+
+
 if __name__ == ('__main__'):
     # get_frame_for_color('temp/back_tiktok_temp.mp4')
+
     data = [
-        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([235, 235, 235])},
-        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([235, 235, 235])}
+        {'path': './src/share/big-share-white.png', 'resize': {'min': 120, 'max': 200}, 'color': np.array([0, 0, 255])},
+        {'path': './src/link/big-link.png', 'resize': {'min': 120, 'max': 200}, 'color': np.array([200, 200, 200])}
     ]
-    get_video(f'back_tiktok.mp4', f'back_test_1.mp4', data)
+    get_video(f'elements.mp4', f'back_test_1.mp4', data)

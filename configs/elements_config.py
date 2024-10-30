@@ -8,7 +8,7 @@ class ElementsConfig:
     """
 
     def __init__(self):
-        self.skip_frames = 20
+        self.skip_frames = 20 # 33-42
         self.zoom_speed = 0.2
         self.max_zoom_factor = 5
         self.threshold = 0.8
