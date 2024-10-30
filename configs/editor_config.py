@@ -6,7 +6,7 @@ class EditorConfig:
         Attributes:
             original_video (str): Path to the original video file.
             full_background (str): Path to the full background video.
-            phone_background (str): Path to the phone background video (optional).
+            phone_background (str): Path to the phone background video.
             model_path (str): Path to the Robust Video Matting model.
             zoom_scale (float): Initial zoom scale for the dynamic zoom effect.
             zoom_increment (float): Increment applied to the zoom per frame.

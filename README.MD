@@ -61,6 +61,7 @@ python pipeline.py --original_video <path_to_original_video> \
 ```text
     --original_video: (Required) Path to the original video file that you want to process.
     --full_background: (Required) Path to the full background video that will replace the chroma-keyed regions of the original video.
+    --phone_background: (Required) Path to the phone background video that will replace the chroma-keyed regions.
     --model_path: (Optional) Path to the Robust Video Matting model file. Default: rvm_resnet50.pth.
     --zoom_scale: (Optional) Initial zoom scale for the chroma key effect. Default: 0.2.
     --zoom_increment: (Optional) Zoom increment applied per frame for the dynamic zoom effect. Default: 1.

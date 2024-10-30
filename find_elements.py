@@ -246,10 +246,4 @@ def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_colo
 
 
 if __name__ == ('__main__'):
-    data = [
-        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([111, 114, 122])},
-        {'path': './src/comment/big-comment.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([111, 114, 122])},
-        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([45, 100, 242])}
-    ]
-    get_video(f'elements.mp4', f'test4.mp4', data)
     pass

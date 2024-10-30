@@ -97,11 +97,9 @@ def main():
 
     data = [
         {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([255, 255, 255])},
-        {'path': './src/comment/big-comment.png', 'resize': {'min': 20, 'max': 200},
-         'color': np.array([255, 255, 255])},
         {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([45, 100, 242])}
     ]
-    get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}.mp4', data)
+    get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}_1.mp4', data)
 
 if __name__ == "__main__":
     main()
