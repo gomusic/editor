@@ -8,6 +8,7 @@ from classes.template import Template
 from get_color_range import get_color
 
 best_match = 0
+best_val = 0
 config = ElementsConfig()
 
 def get_video(input_video_path: str, output_video_path: str, templates_list: List[Dict[str, Any]]):
@@ -46,7 +47,7 @@ def get_frame_for_color(input_video_path: str):
 
 def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
     """Creates a list of Template objects from given paths and settings."""
-    templates = [Template(path=item['path'], resize=item['resize'], color=item['color']) for item in templates_list]
+    templates = [Template(path=item['path'], resize=item['resize'], threshold=item['threshold']) for item in templates_list]
     return templates
 
 
@@ -113,7 +114,7 @@ def update_darkness(darkness: float, zoom_direction: int, darkening_step: float)
 
 def process_template(templates: List[Template], frame: np.ndarray, width: int, height: int, zoom_speed: float, max_zoom_factor: float):
     """Selects the current active template, updates its state, and returns data for processing."""
-    global best_match
+    # global best_match, best_val
     # Identify the first unfinished template
     active_template = next((template for template in templates if not template.completed), None)
 
@@ -121,20 +122,20 @@ def process_template(templates: List[Template], frame: np.ndarray, width: int, h
     if active_template is None:
         return None, None, None
 
-    # Retrieve template details
+    # Search for a match for the active template in the current frame
+    find_best_match_full(frame, active_template)
+
     template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)
     w, h = template_gray.shape[::-1]
-    # Search for a match for the active template in the current frame
-    best_val = find_best_match_full(frame, template_gray, min_size=active_template.resize['min'], max_size=active_template.resize['max'], color=active_template.color)
 
-    print('best match', best_match)
-    print('best val', best_val)
+    print('best match', active_template.best_match)
+    print('best val', active_template.best_val)
 
     # If a match is found, update its state
-    if best_match and best_val >= config.threshold:
+    if active_template.best_match and active_template.best_val >= active_template.threshold:
         print('Great!')
-        top_left = best_match[0]
-        scale = best_match[1]
+        top_left = active_template.best_match[0]
+        scale = active_template.best_match[1]
         w_scaled, h_scaled = int(w * scale), int(h * scale)
         center = (top_left[0] + w_scaled // 2, top_left[1] + h_scaled // 2)
 
@@ -239,22 +240,37 @@ def find_best_match_near_previous(image_gray: np.ndarray, template_gray: np.ndar
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
     return (max_loc, best_match_info["previous_best_scale"]), max_val  # Return match location and value
 
-def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size: int, max_size: int,
-                         color: np.ndarray) -> float | int:
+def convert_result_to_frame(frame, result):
+    # Нормализуем result в диапазон 0-255
+    result_norm = cv2.normalize(result, None, 0, 255, cv2.NORM_MINMAX)
+    result_norm = np.uint8(result_norm)  # Преобразуем к uint8 для совместимости
+
+    # Преобразуем в цветное изображение, чтобы совпадало с каналами кадра (BGR)
+    heatmap = cv2.applyColorMap(result_norm, cv2.COLORMAP_JET)
+
+    # Накладываем тепловую карту на кадр
+    overlay = cv2.addWeighted(frame, 0.5, heatmap, 0.5, 0)
+
+    return overlay
+
+
+def find_best_match_full(frame: np.ndarray, active_template: Template):
     """Finds the best match for a template across a range of scales based on specified min and max sizes."""
-    global best_match
-    best_val, last_scale = 0, 0  # Initialize best match and value
+    # Retrieve template details
+    template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)
+
+    last_scale = 0  # Initialize best match and value
     w, h = template_gray.shape[::-1]
 
     image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert current frame to grayscale for processing
-    # image_gray = increase_brightness(image_gray, value=30)
-    if best_match:
+    image_gray = increase_brightness(image_gray)
+    if active_template.best_match and active_template.best_val >= active_template.threshold:
         print('Popali')
-        scales = [best_match[1]]
-    # Create scales based on the min and max sizes with a step of 5 pixels
+        scales = [active_template.best_match[1]]
     else:
         print('Ne Popali')
-        scales = np.arange(min_size / min(w, h), max_size / min(w, h) + 0.1, 0.05)  # Adjust step if needed
+        # Create scales based on the min and max sizes with a step of 5 pixels
+        scales = np.arange(active_template.resize['min'] / min(w, h), active_template.resize['max'] / min(w, h) + 0.1, 0.05)  # Adjust step if needed
 
     for scale in scales:
         if last_scale:
@@ -270,16 +286,16 @@ def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size:
         result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)  # Perform template matching
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
 
-        if max_val > best_val:  # Update best match if current one is better
-            best_val = max_val
-            best_match = (max_loc, scale)  # Store best match location and scale
+        if max_val > active_template.best_val:  # Update best match if current one is better
+            active_template.best_val = max_val
+            active_template.best_match = (max_loc, scale)  # Store best match location and scale
 
     # If a best match is found, check the color on the original frame
-    if best_match is not None:
-        top_left = best_match[0]
+    if active_template.best_match is not None:
+        top_left = active_template.best_match[0]
 
         # Resize the template to the scale of the best match for masking purposes
-        resized_template = cv2.resize(template_gray, (int(w * best_match[1]), int(h * best_match[1])))
+        resized_template = cv2.resize(template_gray, (int(w * active_template.best_match[1]), int(h * active_template.best_match[1])))
 
         # Create a binary mask where the template is white (1) and the background is black (0)
         _, mask = cv2.threshold(resized_template, 1, 255, cv2.THRESH_BINARY)
@@ -290,9 +306,6 @@ def find_best_match_full(frame: np.ndarray, template_gray: np.ndarray, min_size:
 
         # Calculate the average color of the ROI using the mask to exclude the background
         avg_color = cv2.mean(roi, mask=mask.astype(np.uint8))[:3]  # Get average color (B, G, R) within the masked area
-        print("Average color in matched area:", avg_color)
-
-    return best_val  # Return best match and value if no color checking was performed
 
 
 def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray) -> bool:
@@ -329,7 +342,7 @@ if __name__ == ('__main__'):
     # get_frame_for_color('temp/back_tiktok_temp.mp4')
 
     data = [
-        {'path': './src/share/big-share-white.png', 'resize': {'min': 120, 'max': 200}, 'color': np.array([0, 0, 255])},
-        {'path': './src/link/big-link.png', 'resize': {'min': 120, 'max': 200}, 'color': np.array([200, 200, 200])}
+        # {'path': './src/share/big-share-white.png', 'resize': {'min': 120, 'max': 200}, 'threshold': 0.8},
+        {'path': './src/link/link-white.jpg', 'resize': {'min': 120, 'max': 200}, 'threshold': 0.7}
     ]
-    get_video(f'elements.mp4', f'back_test_1.mp4', data)
+    get_video(f'temp/phone_tiktok_temp.mp4', f'back_test_1.mp4', data)

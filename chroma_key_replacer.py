@@ -367,8 +367,6 @@ def chroma_replace(editor_config):
     # Paths for full background and phone background videos
     temp_full_back_path = create_resized_video(global_editor_config.full_background, 'temp', fps, target_width=frame_width, target_height=frame_height, duration=duration)
     temp_phone_back_path = create_resized_video(global_editor_config.phone_background, 'temp', fps, target_width=frame_width, target_height=frame_height)
-    # temp_full_back_path = create_temp_video(global_editor_config.full_background, 'temp', fps)
-    # temp_phone_back_path = create_temp_video(global_editor_config.phone_background, 'temp', fps)
     background_phone_video = cv2.VideoCapture(temp_phone_back_path)
 
     background_video = cv2.VideoCapture(temp_full_back_path)
