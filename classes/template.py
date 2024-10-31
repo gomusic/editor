@@ -2,7 +2,7 @@ from typing import Dict
 import numpy as np
 
 class Template:
-    def __init__(self, path: str, resize: Dict[str, int], threshold):
+    def __init__(self, path: str, resize: Dict[str, int], threshold = 0.8):
         self.path = path
         self.resize = resize
         self.threshold = threshold
