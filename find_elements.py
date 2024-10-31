@@ -236,7 +236,7 @@ def find_best_match_near_previous(image_gray: np.ndarray, template_gray: np.ndar
     roi = image_gray[y_min:y_max, x_min:x_max]  # Region of Interest (ROI) for matching
     # Resize template based on previous scale
     resized_template = cv2.resize(template_gray, (int(w * best_match_info["previous_best_scale"]), int(h * best_match_info["previous_best_scale"])))
-    result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)  # Template matching
+    result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCORR)  # Template matching
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
     return (max_loc, best_match_info["previous_best_scale"]), max_val  # Return match location and value
 
@@ -283,7 +283,7 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
             last_scale = 0
             continue
 
-        result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)  # Perform template matching
+        result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCORR)  # Perform template matching
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
 
         if max_val > active_template.best_val:  # Update best match if current one is better
@@ -316,6 +316,15 @@ def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_colo
         if not (lower_bound <= avg <= upper_bound):
             return False  # Return false if any channel is out of bounds
     return True  # Return true if all channels are within bounds
+
+
+def debug_image(img_path="link_img.jpg"):
+    image = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+
+    frame = elements_search(
+        image,
+        [Template(path='./src/link/big-link.png', resize={'min': 120, 'max': 200}, color=np.array([200, 200, 200]))]
+    )
 
 
 def is_mostly_white(frame, sensitivity=90, threshold=0.8):
