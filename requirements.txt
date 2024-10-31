@@ -1,0 +1,8 @@
+cvzone==1.6.1
+opencv-python==4.10.0.84
+av==13.0.0
+tqdm==4.66.5
+pims==0.7
+numpy==1.26.3
+mediapipe==0.10.14
+moviepy==1.0.3
