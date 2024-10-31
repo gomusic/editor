@@ -96,8 +96,8 @@ def main():
     chroma_replace(editor_config)
 
     data = [
-        {'path': './src/share/big-share.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([255, 255, 255])},
-        {'path': './src/link/big-link-test.png', 'resize': {'min': 20, 'max': 200}, 'color': np.array([45, 100, 242])}
+        {'path': './src/share/big-share-white.png', 'resize': {'min': 100, 'max': 200}, 'threshold': 0.8},
+        {'path': './src/link/big-link.png', 'resize': {'min': 40, 'max': 200}, 'threshold': 0.7}
     ]
     get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}_1.mp4', data)
 

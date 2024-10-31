@@ -2,16 +2,18 @@ from typing import Dict
 import numpy as np
 
 class Template:
-    def __init__(self, path: str, resize: Dict[str, int], color: np.ndarray):
+    def __init__(self, path: str, resize: Dict[str, int], threshold):
         self.path = path
         self.resize = resize
-        self.color = color
+        self.threshold = threshold
 
         # Инициализация закрытых атрибутов состояния
         self._zoom_factor = 1.0
         self._darkness = 0.0
         self._zoom_direction = 1
         self._completed = False
+        self.best_match = 0
+        self.best_val = 0
 
     @property
     def zoom_factor(self):
