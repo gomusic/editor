@@ -224,6 +224,7 @@ def increase_brightness(img, value=30):
         raise ValueError("Unsupported number of channels.")
 
     return img
+
 def find_best_match_near_previous(image_gray: np.ndarray, template_gray: np.ndarray, best_match_info: Dict, search_window_size: int) -> Tuple:
     """Finds the best match for the template within a specified search window near the previous best match."""
     w, h = template_gray.shape[::-1]
@@ -300,6 +301,8 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
         # Create a binary mask where the template is white (1) and the background is black (0)
         _, mask = cv2.threshold(resized_template, 1, 255, cv2.THRESH_BINARY)
 
+        # frame[y:y+h, x:x+w]
+        # frame_to_base64(frame[700:700+50, 80:80+50])
         # Extract the region of interest (ROI) from the original frame
         roi = frame[top_left[1]:top_left[1] + resized_template.shape[0],
               top_left[0]:top_left[0] + resized_template.shape[1]]
@@ -347,11 +350,150 @@ def is_mostly_white(frame, sensitivity=90, threshold=0.8):
     return white_ratio >= threshold
 
 
-if __name__ == ('__main__'):
-    # get_frame_for_color('temp/back_tiktok_temp.mp4')
+def hex_to_hsv_range(hex_color, hue_tol=10, sat_tol=40, val_tol=40):
+    # Convert HEX to BGR
+    hex_color = hex_color.lstrip('#')
+    bgr = tuple(int(hex_color[i:i+2], 16) for i in (4, 2, 0))
 
+    # Create a single pixel array with the BGR color
+    bgr_pixel = np.uint8([[bgr]])
+
+    # Convert BGR to HSV
+    hsv_pixel = cv2.cvtColor(bgr_pixel, cv2.COLOR_BGR2HSV)
+    hsv_value = hsv_pixel[0][0]
+
+    # Define ranges with specified tolerance
+    lower_hue = (hsv_value[0] - hue_tol) % 180
+    upper_hue = (hsv_value[0] + hue_tol) % 180
+    lower_sat = max(hsv_value[1] - sat_tol, 0)
+    upper_sat = min(hsv_value[1] + sat_tol, 255)
+    lower_val = max(hsv_value[2] - val_tol, 0)
+    upper_val = min(hsv_value[2] + val_tol, 255)
+
+    # Adjust hue wrap-around issue
+    if lower_hue > upper_hue:
+        lower_range1 = (0, lower_sat, lower_val)
+        upper_range1 = (upper_hue, upper_sat, upper_val)
+        lower_range2 = (lower_hue, lower_sat, lower_val)
+        upper_range2 = (179, upper_sat, upper_val)
+        return np.array(lower_range1), np.array(upper_range1), np.array(lower_range2), np.array(upper_range2)
+    else:
+        lower_range = (lower_hue, lower_sat, lower_val)
+        upper_range = (upper_hue, upper_sat, upper_val)
+        return np.array(lower_range), np.array(upper_range), None, None
+
+
+
+
+def contour_have_black_pixels_neibs(contour, mask):
+    try:
+        x, y = contour[0][0]
+        if mask[y - 1, x] == 0:
+            return True
+
+        return False
+    except:
+        return True
+
+
+
+
+def display_hsv_highlight(image_path, lower_hsv, upper_hsv, is_white = False):
+    # Load the original image
+    image = cv2.imread(image_path)
+    #image = cv2.convertScaleAbs(image, alpha=1, beta=1.5)
+    if image is None:
+        print("Error: Image not loaded. Check the file path.")
+        return
+
+    # Convert the image from BGR to HSV color space
+    if is_white:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+
+
+    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    # Create a mask for the specified HSV range
+    mask = cv2.inRange(hsv_image, lower_hsv, upper_hsv)
+
+    # Create an output image that only shows the masked area in color
+    result_image = cv2.bitwise_and(image, image, mask=mask)
+
+    # Optionally, you can overlay the mask on the original image to highlight the detected areas
+    # Convert the mask to a three-channel image
+    colored_mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+    highlighted_image = cv2.addWeighted(image, 1, colored_mask, 0.25, 0)  # Adjust transparency as needed
+
+    # Display the original, mask, and result images
+    #cv2.imshow('Original Image', image)
+    contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+    contours = [c for c in contours if not contour_have_black_pixels_neibs(c, mask)]
+
+
+    cv2.drawContours(result_image, contours, -1, (255, 255, 255), thickness=cv2.FILLED)
+
+    debug_image(result_image)
+    cv2.imshow('Mask', result_image)
+    #cv2.imshow('Mask Applied to Image', result_image)
+    #cv2.imshow('Highlighted Image', highlighted_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+def hex_to_hsv(hex_color):
+    # Step 1: Hex to BGR
+    # Convert hex to an RGB tuple
+    hex_color = hex_color.lstrip('#')  # Remove the '#' symbol if it's there
+    bgr = tuple(int(hex_color[i:i+2], 16) for i in (4, 2, 0))  # Convert RGB to BGR
+
+    # Create an array containing the BGR value (as a single pixel)
+    bgr_pixel = np.uint8([[bgr]])
+
+    # Step 2: BGR to HSV
+    hsv_pixel = cv2.cvtColor(bgr_pixel, cv2.COLOR_BGR2HSV)
+
+    return hsv_pixel[0][0]
+
+def debug_image(image):
+    threshold = 0.4
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    template = cv2.imread('./src/link/test1.png')
+    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+
+    h, w, channels = image.shape
+    res = cv2.matchTemplate(img_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+
+    loc = []
+
+    loc = np.where(res >= threshold)
+
+    th, tw = template_gray.shape[:2]
+
+
+    for pt in zip(*loc[::-1]):  # Switch x and y coordinates
+        top_left = pt
+        bottom_right = (top_left[0] + tw, top_left[1] + th)
+        cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)
+
+    cv2.imwrite('res.jpg', image)
+    return
+
+    frame = elements_search(
+        image,
+        [Template(path='./src/link/link.png', resize={'min': 45, 'max': 50})]
+    )
+
+if __name__ == ('__main__'):
+    #lower, upper, lower2, upper2 = hex_to_hsv_range('#ffffff', hue_tol=0, sat_tol=0, val_tol=30)
+    lower, upper, l2, u2 = hex_to_hsv_range('#2764FB')
+    display_hsv_highlight("tik_img_test.jpg", lower, upper)
+    exit(0)
+    #get_frame_for_color('temp/back_tiktok_temp.mp4')
     data = [
-        # {'path': './src/share/big-share-white.png', 'resize': {'min': 120, 'max': 200}, 'threshold': 0.8},
+        {'path': './src/share/big-share-white.png', 'resize': {'min': 120, 'max': 200}, 'threshold': 0.8},
         {'path': './src/link/link-white.jpg', 'resize': {'min': 120, 'max': 200}, 'threshold': 0.7}
     ]
-    get_video(f'temp/phone_tiktok_temp.mp4', f'back_test_1.mp4', data)
+    get_video(f'/Users/cucusenok/Desktop/tiktok case/tiktok.mov', f'back_test_1.mp4', data)
