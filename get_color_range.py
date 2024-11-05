@@ -97,27 +97,44 @@ def main():
     cap.release()
     cv2.destroyAllWindows()
 
-def get_color(frame):
+def get_color(frame=None, image_path=None):
     global current_frame, pan_x, pan_y, window_width, window_height
 
+    # Load image if an image path is provided
+    if image_path:
+        frame = cv2.imread(image_path)
+    elif frame is None:
+        print("Error: No frame or image path provided.")
+        return
+
+    # Set up display window and mouse callback
     cv2.namedWindow('frame')
     cv2.setMouseCallback('frame', mouse_event_handler)
 
-    # Screen dimensions for displaying the portion of the frame
-    screen_height, screen_width = 720, 1280  # Set desired visible window size
+    # Define visible window size
+    screen_height, screen_width = 720, 1280
     window_height, window_width = screen_height, screen_width
 
     while True:
         current_frame = frame
 
-        # Calculate the visible frame section based on panning offsets
+        # Ensure pan positions are within frame boundaries
+        max_x = max(0, frame.shape[1] - window_width)
+        max_y = max(0, frame.shape[0] - window_height)
+        pan_x = min(pan_x, max_x)
+        pan_y = min(pan_y, max_y)
+
+        # Extract visible section based on panning offsets
         visible_frame = frame[pan_y:pan_y + window_height, pan_x:pan_x + window_width]
 
         # Display the visible section of the frame
         cv2.imshow('frame', visible_frame)
 
+        # Press 'q' to exit
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+    cv2.destroyAllWindows()
+
 if __name__ == '__main__':
-    main()
+    get_color(image_path='new_tests/img.png')

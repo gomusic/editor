@@ -96,10 +96,10 @@ def main():
     chroma_replace(editor_config)
 
     data = [
-        {'path': './src/share/big-share-white.png', 'resize': {'min': 100, 'max': 200}, 'threshold': 0.8},
-        {'path': './src/link/big-link.png', 'resize': {'min': 40, 'max': 200}, 'threshold': 0.7}
+        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
+        {'template_path': './src/link/test1.png', 'resize': {'min': 100, 'max': 180}, 'threshold': 0.6, 'background_hex_color': '#2764FB'}
     ]
-    get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}_1.mp4', data)
+    get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}_2.mp4', data)
 
 if __name__ == "__main__":
     main()

@@ -13,7 +13,7 @@ from PIL import Image, ImageFilter
 # Initialize the segmentation model
 mediapipe_selfie_segmentation = mediapipe.solutions.selfie_segmentation
 mediapipe_segmentor = mediapipe_selfie_segmentation.SelfieSegmentation(model_selection=1)
-
+start_phone_video = False
 global_editor_config = EditorConfig()
 
 # Detection tracking
@@ -60,6 +60,7 @@ def frame_to_base64(frame):
 
 # Function to apply zoom towards the center of the background
 def apply_zoom_to_center(main_frame, background_rect, background_frame, phone_frame, frame_width, frame_height, zoom_scale):
+    global start_phone_video
     h, w = main_frame.shape[:2]  # Main frame height and width
     rect_x, rect_y, rect_w, rect_h = background_rect  # Background rect position and dimensions
 
@@ -76,6 +77,7 @@ def apply_zoom_to_center(main_frame, background_rect, background_frame, phone_fr
 
     # Check if the zoomed background frame is large enough to cover the detected area
     if new_bg_w >= frame_width or new_bg_h >= frame_height:
+        start_phone_video = True
         return phone_frame
 
     # Calculate the coordinates for cropping the zoomed-in frame
@@ -382,16 +384,22 @@ def chroma_replace(editor_config):
     else:
         raise TypeError("This type is not supported")
 
+    ret_bg, background_phone_frame = background_phone_video.read()
+    if not ret_bg:
+        background_phone_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        ret_bg, background_phone_frame = background_phone_video.read()
+
     for frame in frame_iterator:
         ret_bg, background_frame = background_video.read()
         if not ret_bg:
             background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
             ret_bg, background_frame = background_video.read()
 
-        ret_bg, background_phone_frame = background_phone_video.read()
-        if not ret_bg:
-            background_phone_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        if start_phone_video:
             ret_bg, background_phone_frame = background_phone_video.read()
+            if not ret_bg:
+                background_phone_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret_bg, background_phone_frame = background_phone_video.read()
 
         if global_editor_config.robust_output_type == 'png':
             processed_frame = replace_phone_screen_png(frame, background_frame, background_phone_frame, required_frames_for_one_second,
@@ -402,8 +410,6 @@ def chroma_replace(editor_config):
                                                          frame_width, frame_height)
 
         output_video.write(processed_frame)
-
-    background_video.release()
 
     while background_phone_video.isOpened():
         ret_bg, background_phone_frame = background_phone_video.read()

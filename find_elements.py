@@ -47,7 +47,7 @@ def get_frame_for_color(input_video_path: str):
 
 def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
     """Creates a list of Template objects from given paths and settings."""
-    templates = [Template(path=item['path'], resize=item['resize'], threshold=item['threshold']) for item in templates_list]
+    templates = [Template(**item) for item in templates_list]
     return templates
 
 
@@ -125,7 +125,7 @@ def process_template(templates: List[Template], frame: np.ndarray, width: int, h
     # Search for a match for the active template in the current frame
     find_best_match_full(frame, active_template)
 
-    template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)
+    template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
     w, h = template_gray.shape[::-1]
 
     print('best match', active_template.best_match)
@@ -133,6 +133,9 @@ def process_template(templates: List[Template], frame: np.ndarray, width: int, h
 
     # If a match is found, update its state
     if active_template.best_match and active_template.best_val >= active_template.threshold:
+        print(active_template.threshold)
+        print(active_template.best_val)
+        print(active_template.best_match)
         print('Great!')
         top_left = active_template.best_match[0]
         scale = active_template.best_match[1]
@@ -164,6 +167,7 @@ def frame_to_base64(frame):
 def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
     """Main function for searching elements in the current frame using defined templates."""
     height, width, _ = frame.shape
+    frame = cv2.fastNlMeansDenoisingColored(frame)
 
     # Get active template and processing data
     active_template, processing_data, state = process_template(
@@ -176,9 +180,26 @@ def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
 
     # Process the frame with the current template
     top_left, scale, center, darkness = processing_data
-    template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)  # Convert template to grayscale
+    template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
     frame = apply_darkening(frame, template_gray, scale, top_left, darkness)  # Apply darkening effect
     frame = apply_zoom(frame, center, active_template.zoom_factor, width, height)  # Apply zoom effect
+
+    return frame
+
+
+
+def draw_circle(frame: np.ndarray, center: tuple, scale: float, form_size: int, template_width: int, template_height: int) -> np.ndarray:
+    """Draws a circle on the frame based on the provided center and size parameters."""
+    # Вычисляем базовый радиус
+    base_radius = int(0.5 * ((template_width * scale) ** 2 + (template_height * scale) ** 2) ** 0.5)
+    radius = base_radius + form_size
+
+    # Задаем цвет и толщину линии круга
+    color = (0, 255, 0)  # Зеленый цвет в формате BGR
+    thickness = 2  # Толщина обводки
+
+    # Рисуем круг с центром в center и радиусом radius
+    cv2.circle(frame, center, radius, color, thickness)
 
     return frame
 
@@ -257,58 +278,72 @@ def convert_result_to_frame(frame, result):
 
 def find_best_match_full(frame: np.ndarray, active_template: Template):
     """Finds the best match for a template across a range of scales based on specified min and max sizes."""
-    # Retrieve template details
-    template_gray = cv2.cvtColor(cv2.imread(active_template.path), cv2.COLOR_BGR2GRAY)
 
-    last_scale = 0  # Initialize best match and value
+    if active_template.background_hex_color:
+        lower, upper, l2, u2 = hex_to_hsv_range(active_template.background_hex_color)
+        mask = get_hsv_mask(frame, lower, upper)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
+    template_gray = cv2.fastNlMeansDenoising(template_gray)
     w, h = template_gray.shape[::-1]
 
-    image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # Convert current frame to grayscale for processing
-    image_gray = increase_brightness(image_gray)
+    image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    image_gray = cv2.fastNlMeansDenoising(image_gray)
+
     if active_template.best_match and active_template.best_val >= active_template.threshold:
-        print('Popali')
         scales = [active_template.best_match[1]]
     else:
-        print('Ne Popali')
-        # Create scales based on the min and max sizes with a step of 5 pixels
-        scales = np.arange(active_template.resize['min'] / min(w, h), active_template.resize['max'] / min(w, h) + 0.1, 0.05)  # Adjust step if needed
+        scales = np.arange(
+            active_template.resize['min'] / min(w, h),
+            active_template.resize['max'] / min(w, h) + 0.1,
+            0.05
+        )
+
+    best_match = None
+    best_score = 0
 
     for scale in scales:
-        if last_scale:
-            resized_template = cv2.resize(template_gray, (int(w * last_scale), int(h * last_scale)))
-        else:
-            resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))  # Resize template
-
-        # Skip if resized template is larger than the image
+        resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))
         if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[1]:
-            last_scale = 0
             continue
 
-        result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCORR)  # Perform template matching
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)  # Get match details
+        if active_template.background_hex_color:
+            for contour in contours:
+                x, y, w_contour, h_contour = cv2.boundingRect(contour)
+                roi = image_gray[y:y + h_contour, x:x + w_contour]
 
-        if max_val > active_template.best_val:  # Update best match if current one is better
-            active_template.best_val = max_val
-            active_template.best_match = (max_loc, scale)  # Store best match location and scale
+                if roi.shape[0] < resized_template.shape[0] or roi.shape[1] < resized_template.shape[1]:
+                    continue
 
-    # If a best match is found, check the color on the original frame
-    if active_template.best_match is not None:
-        top_left = active_template.best_match[0]
+                result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
-        # Resize the template to the scale of the best match for masking purposes
-        resized_template = cv2.resize(template_gray, (int(w * active_template.best_match[1]), int(h * active_template.best_match[1])))
+                if max_val > active_template.best_val:
+                    active_template.best_val = max_val
+                    active_template.best_match = ((x + max_loc[0], y + max_loc[1]), scale)
 
-        # Create a binary mask where the template is white (1) and the background is black (0)
-        _, mask = cv2.threshold(resized_template, 1, 255, cv2.THRESH_BINARY)
+                    _, binary_mask = cv2.threshold(resized_template, 1, 255, cv2.THRESH_BINARY)
 
-        # frame[y:y+h, x:x+w]
-        # frame_to_base64(frame[700:700+50, 80:80+50])
-        # Extract the region of interest (ROI) from the original frame
-        roi = frame[top_left[1]:top_left[1] + resized_template.shape[0],
-              top_left[0]:top_left[0] + resized_template.shape[1]]
+                    resized_binary_mask = cv2.resize(binary_mask, (roi.shape[1], roi.shape[0]),
+                                                     interpolation=cv2.INTER_NEAREST)
 
-        # Calculate the average color of the ROI using the mask to exclude the background
-        avg_color = cv2.mean(roi, mask=mask.astype(np.uint8))[:3]  # Get average color (B, G, R) within the masked area
+                    roi_mask = mask[y:y + h_contour, x:x + w_contour]
+                    match_score = np.sum(cv2.bitwise_and(roi_mask, resized_binary_mask) == 255)
+
+                    if match_score > best_score:
+                        best_score = match_score
+                        best_match = ((x + max_loc[0], y + max_loc[1]), scale)
+        else:
+            result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+
+            if max_val > active_template.best_val:
+                active_template.best_val = max_val
+                active_template.best_match = (max_loc, scale)
+
+    if best_match:
+        active_template.best_match = best_match
 
 
 def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray) -> bool:
@@ -319,15 +354,6 @@ def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_colo
         if not (lower_bound <= avg <= upper_bound):
             return False  # Return false if any channel is out of bounds
     return True  # Return true if all channels are within bounds
-
-
-def debug_image(img_path="link_img.jpg"):
-    image = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
-
-    frame = elements_search(
-        image,
-        [Template(path='./src/link/big-link.png', resize={'min': 120, 'max': 200}, color=np.array([200, 200, 200]))]
-    )
 
 
 def is_mostly_white(frame, sensitivity=90, threshold=0.8):
@@ -383,8 +409,6 @@ def hex_to_hsv_range(hex_color, hue_tol=10, sat_tol=40, val_tol=40):
         return np.array(lower_range), np.array(upper_range), None, None
 
 
-
-
 def contour_have_black_pixels_neibs(contour, mask):
     try:
         x, y = contour[0][0]
@@ -396,6 +420,20 @@ def contour_have_black_pixels_neibs(contour, mask):
         return True
 
 
+def get_hsv_mask(frame, lower_hsv, upper_hsv, is_white=False):
+    if is_white:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+
+    image = cv2.fastNlMeansDenoisingColored(frame)
+    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv_image, lower_hsv, upper_hsv)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contours = [c for c in contours if not contour_have_black_pixels_neibs(c, mask)]
+    cv2.drawContours(mask, contours, -1, 255, thickness=cv2.FILLED)
+
+    return mask
 
 
 def display_hsv_highlight(image_path, lower_hsv, upper_hsv, is_white = False):
@@ -412,7 +450,7 @@ def display_hsv_highlight(image_path, lower_hsv, upper_hsv, is_white = False):
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
 
-
+    image = cv2.fastNlMeansDenoisingColored(image) # Reducing image noise
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
     # Create a mask for the specified HSV range
@@ -435,7 +473,7 @@ def display_hsv_highlight(image_path, lower_hsv, upper_hsv, is_white = False):
 
     cv2.drawContours(result_image, contours, -1, (255, 255, 255), thickness=cv2.FILLED)
 
-    debug_image(result_image)
+    debug_image(image=result_image)
     cv2.imshow('Mask', result_image)
     #cv2.imshow('Mask Applied to Image', result_image)
     #cv2.imshow('Highlighted Image', highlighted_image)
@@ -457,43 +495,62 @@ def hex_to_hsv(hex_color):
 
     return hsv_pixel[0][0]
 
-def debug_image(image):
-    threshold = 0.4
-    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    template = cv2.imread('./src/link/test1.png')
-    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
 
-    h, w, channels = image.shape
-    res = cv2.matchTemplate(img_gray, template_gray, cv2.TM_CCOEFF_NORMED)
-
-    loc = []
-
-    loc = np.where(res >= threshold)
-
-    th, tw = template_gray.shape[:2]
-
-
-    for pt in zip(*loc[::-1]):  # Switch x and y coordinates
-        top_left = pt
-        bottom_right = (top_left[0] + tw, top_left[1] + th)
-        cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)
-
-    cv2.imwrite('res.jpg', image)
-    return
+def debug_image(image = None, image_path = None):
+    # threshold = 0.5
+    # # Загрузим изображение по пути
+    if image_path:
+        image = cv2.imread(image_path)
+    #     image = cv2.fastNlMeansDenoisingColored(image)  # Reducing image noise
+    #
+    # if image is None:
+    #     print("Ошибка: Не удалось загрузить изображение.")
+    #     return
+    #
+    # img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # template = cv2.imread('./src/link/test1.png')
+    #
+    # if template is None:
+    #     print("Ошибка: Не удалось загрузить шаблонное изображение.")
+    #     return
+    #
+    # template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    # h, w, channels = image.shape
+    # # img_gray = cv2.fastNlMeansDenoising(img_gray)
+    # # template_gray = cv2.fastNlMeansDenoising(template_gray)
+    # res = cv2.matchTemplate(img_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+    #
+    # loc = np.where(res >= threshold)
+    # th, tw = template_gray.shape[:2]
+    #
+    # for pt in zip(*loc[::-1]):  # Поменяем x и y координаты
+    #     top_left = pt
+    #     bottom_right = (top_left[0] + tw, top_left[1] + th)
+    #     cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)
+    #
+    # cv2.imwrite('res.jpg', image)
+    # return
 
     frame = elements_search(
         image,
-        [Template(path='./src/link/link.png', resize={'min': 45, 'max': 50})]
+        [Template(template_path='./src/link/test1.png', resize={'min': 15, 'max': 20}, threshold=0.6, background_hex_color='#2764FB')]
     )
 
+    cv2.imwrite('res2.jpg', frame)
+
 if __name__ == ('__main__'):
-    #lower, upper, lower2, upper2 = hex_to_hsv_range('#ffffff', hue_tol=0, sat_tol=0, val_tol=30)
-    lower, upper, l2, u2 = hex_to_hsv_range('#2764FB')
-    display_hsv_highlight("tik_img_test.jpg", lower, upper)
-    exit(0)
+    # lower, upper, lower2, upper2 = hex_to_hsv_range('#ffffff', hue_tol=0, sat_tol=0, val_tol=30)
+    # lower, upper, l2, u2 = hex_to_hsv_range('#2764FB')
+    # image = cv2.imread("new_tests/img_4.png")
+    # image = get_hsv_mask(image, lower, upper)
+    # cv2.imwrite('res2.jpg', image)
+    # hsv_lower = np.array([24, 200, 255])
+    # display_hsv_highlight("new_tests/img_4.png", lower, upper)
+    # debug_image(image_path="new_tests/tik_img_test.jpg")
+    # exit(0)
     #get_frame_for_color('temp/back_tiktok_temp.mp4')
     data = [
-        {'path': './src/share/big-share-white.png', 'resize': {'min': 120, 'max': 200}, 'threshold': 0.8},
-        {'path': './src/link/link-white.jpg', 'resize': {'min': 120, 'max': 200}, 'threshold': 0.7}
+        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.8},
+        {'template_path': './src/link/test1.png', 'resize': {'min': 15, 'max': 20}, 'threshold': 0.6, 'background_hex_color': '#2764FB'}
     ]
-    get_video(f'/Users/cucusenok/Desktop/tiktok case/tiktok.mov', f'back_test_1.mp4', data)
+    get_video(f'temp/phone_tiktok_temp.mp4', f'back_test_1.mp4', data)
