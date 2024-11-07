@@ -375,7 +375,7 @@ def chroma_replace(editor_config):
 
     output_video = cv2.VideoWriter(f'{global_editor_config.output_video_name}.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
     required_frames_for_one_second = fps
-    folder_path = f'./robust/{os.path.splitext(global_editor_config.original_video)[0]}_output_{global_editor_config.robust_output_type}'
+    folder_path = f'./robust/{global_editor_config.filename_without_exstention}_output_{global_editor_config.robust_output_type}'
 
     if global_editor_config.robust_output_type == 'png':
         frame_iterator = FIter(path=folder_path)

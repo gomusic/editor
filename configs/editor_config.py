@@ -38,6 +38,7 @@ class EditorConfig:
     replace_output_video: str = ''
     output_composition: str = ''
     processing_model: str = 'cpu'
+    filename_without_exstention: str = ''
 
     def __init__(self, args=None):
         """
@@ -69,5 +70,7 @@ class EditorConfig:
             self.processing_model = getattr(args, 'processing_model', self.processing_model)
 
             self.replace_output_video = f'{os.path.splitext(os.path.basename(self.original_video))[0]}_replace_color.mp4'
+
+            self.filename_without_exstention = os.path.splitext(os.path.split(self.original_video)[-1])[0]
             # TODO: если в self.original_video будет передан путь типа ./ - все сломается, если передать /home/video.test - все сломается
-            self.output_composition = f'./robust/{os.path.splitext(self.original_video)[0]}_output_{self.robust_output_type}'
+            self.output_composition = f'./robust/{self.filename_without_exstention}_output_{self.robust_output_type}'
