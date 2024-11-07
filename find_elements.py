@@ -508,7 +508,7 @@ def debug_image(image = None, image_path = None):
     #     return
     #
     # img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # template = cv2.imread('./src/link/test1.png')
+    # template = cv2.imread('./src/link/tiktok_link.png')
     #
     # if template is None:
     #     print("Ошибка: Не удалось загрузить шаблонное изображение.")
@@ -533,7 +533,7 @@ def debug_image(image = None, image_path = None):
 
     frame = elements_search(
         image,
-        [Template(template_path='./src/link/test1.png', resize={'min': 15, 'max': 20}, threshold=0.6, background_hex_color='#2764FB')]
+        [Template(template_path='src/link/tiktok_link.png', resize={'min': 15, 'max': 20}, threshold=0.6, background_hex_color='#2764FB')]
     )
 
     cv2.imwrite('res2.jpg', frame)
@@ -551,6 +551,6 @@ if __name__ == ('__main__'):
     #get_frame_for_color('temp/back_tiktok_temp.mp4')
     data = [
         {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.8},
-        {'template_path': './src/link/test1.png', 'resize': {'min': 15, 'max': 20}, 'threshold': 0.6, 'background_hex_color': '#2764FB'}
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 15, 'max': 20}, 'threshold': 0.6, 'background_hex_color': '#2764FB'}
     ]
     get_video(f'temp/phone_tiktok_temp.mp4', f'back_test_1.mp4', data)
