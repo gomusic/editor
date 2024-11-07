@@ -96,8 +96,8 @@ def main():
     chroma_replace(editor_config)
 
     data = [
-        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
-        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 300, 'max': 500}, 'threshold': 0.6, 'background_hex_color': '#2764FB'}
+        # {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 300}, 'threshold': 0.5, 'background_hex_color': '#2764FB'}
     ]
     get_video(f'{editor_config.output_video_name}.mp4', f'{editor_config.output_video_name}_2.mp4', data)
 

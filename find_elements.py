@@ -29,7 +29,7 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
 
         # Process frame only if the number of frames skipped is less than the current count
         if config.skip_frames <= count_frames:
-            frame = elements_search(frame, templates)
+            frame = elements_search(frame, templates, count_frames)
 
         output_video.write(frame)
 
@@ -164,7 +164,7 @@ def frame_to_base64(frame):
     return base64.b64encode(buffer).decode('utf-8')
 
 
-def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
+def elements_search(frame: np.ndarray, templates: List[Template], count: int) -> np.ndarray:
     """Main function for searching elements in the current frame using defined templates."""
     height, width, _ = frame.shape
     frame = cv2.fastNlMeansDenoisingColored(frame)
@@ -177,6 +177,11 @@ def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
     # If all templates are processed, return the original frame
     if active_template is None or processing_data is None:
         return frame
+
+    if active_template and active_template.background_hex_color:
+        print('Copy Link detaction, frame: ', count)
+    elif active_template:
+        print('Template detaction, frame: ', count)
 
     # Process the frame with the current template
     top_left, scale, center, darkness = processing_data
