@@ -60,9 +60,9 @@ def main():
 
         # Load the matting model
         if editor_config.processing_model == 'cpu':
-            model = MattingNetwork(args.model).eval().cpu()
+            model = MattingNetwork(args.robust_model).eval().cpu()
         elif editor_config.processing_model == 'gpu':
-            model = MattingNetwork(args.model).eval().cuda()
+            model = MattingNetwork(args.robust_model).eval().cuda()
         else:
             raise TypeError('This type of processing is not supported')
 

@@ -46,6 +46,8 @@ class EditorConfig:
         Args:
             args: The object returned by parse_args(), containing command-line arguments.
         """
+
+        # TODO: можно сделать return сразу если аргументов нет, в твоем случае возможен запуск без аргументов?
         # If the args object is passed, overwrite the default values
         if args:
             self.original_video = getattr(args, 'original_video', self.original_video)
@@ -67,4 +69,5 @@ class EditorConfig:
             self.processing_model = getattr(args, 'processing_model', self.processing_model)
 
             self.replace_output_video = f'{os.path.splitext(os.path.basename(self.original_video))[0]}_replace_color.mp4'
+            # TODO: если в self.original_video будет передан путь типа ./ - все сломается, если передать /home/video.test - все сломается
             self.output_composition = f'./robust/{os.path.splitext(self.original_video)[0]}_output_{self.robust_output_type}'
