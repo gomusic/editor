@@ -121,99 +121,6 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
 
     frame = image[:, :, :3]
     overlay_alpha = image[:, :, 3]
-
-    overlay_color = frame
-
-    # Convert frame to HSV and apply blue mask
-    hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    blue_mask = cv2.inRange(hsv_frame, global_editor_config.lower_blue, global_editor_config.upper_blue)
-    blurred_mask = cv2.GaussianBlur(blue_mask, (5, 5), 0)
-    kernel = np.ones((5, 5), np.uint8)
-    blue_mask_cleaned = cv2.morphologyEx(blurred_mask, cv2.MORPH_CLOSE, kernel)
-
-    contours, _ = cv2.findContours(blue_mask_cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    frame[blue_mask != 0] = [0, 0, 0]
-
-    # If no contours are detected, return the background with the overlay
-    if not contours:
-        main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
-
-        # Apply green layer extraction to the main background after all operations
-        main_background = extract_green_layers(main_background, global_editor_config.lower_green,
-                                               global_editor_config.upper_green)
-
-        return main_background
-
-    # Filter contours based on area
-    filtered_contours = [c for c in contours if cv2.contourArea(c) > 1700]  # Adjust the threshold as needed
-    if not filtered_contours:
-        main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
-
-        # Apply green layer extraction to the main background after all operations
-        main_background = extract_green_layers(main_background, global_editor_config.lower_green,
-                                               global_editor_config.upper_green)
-
-        return main_background
-
-    # Get the largest contour (phone screen) and its bounding rectangle
-    largest_contour = max(filtered_contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(largest_contour)
-
-    # Resize the phone frame to fit the detected phone screen area
-    background_phone_frame_resized = cv2.resize(phone_frame, (w, h))
-
-    roi = frame[y:y + h, x:x + w]  # Region of interest
-
-    # Create a mask for the phone screen
-    phone_screen_mask = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.uint8)
-    cv2.drawContours(phone_screen_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
-    cv2.drawContours(phone_screen_mask, [largest_contour], -1, (0, 0, 0), thickness=10, lineType=cv2.LINE_AA)
-
-    # Apply the mask to replace the phone screen area with the phone_frame
-    phone_screen_mask_roi = phone_screen_mask[y:y + h, x:x + w]
-    background_with_mask = cv2.bitwise_and(background_phone_frame_resized, background_phone_frame_resized,
-                                           mask=phone_screen_mask_roi)
-    inverse_mask = cv2.bitwise_not(phone_screen_mask_roi)
-    roi_with_edges = cv2.bitwise_and(roi, roi, mask=inverse_mask)
-
-    # Combine the original frame and the new phone frame background for the phone screen area
-    frame[y:y + h, x:x + w] = cv2.add(roi_with_edges, background_with_mask)
-
-    # Update detection count
-    consecutive_frame_count += 1
-
-    # Apply background blending after all operations
-    main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
-
-    # Check if zooming should start
-    if start_zooming:
-        global_editor_config.zoom_scale += global_editor_config.zoom_increment
-        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, phone_frame, frame_width,
-                                               frame_height, global_editor_config.zoom_scale)
-
-    # Check if the background frame is detected for more than 1 second
-    if not start_zooming and consecutive_frame_count >= required_frames_for_one_second:
-        detected_for_required_period = True
-        start_zooming = True
-        print("Background detected for more than one second.")
-
-    # Apply green layer extraction to the main background after all operations
-    main_background = extract_green_layers(main_background, global_editor_config.lower_green,
-                                           global_editor_config.upper_green)
-
-    return main_background
-
-def replace_phone_screen_png(image, background_frame, phone_frame, required_frames_for_one_second, frame_width, frame_height):
-    global consecutive_frame_count
-    global detected_for_required_period
-    global start_zooming
-    global global_editor_config
-
-    w = frame_width
-    h = frame_height
-
-    frame = image[:, :, :3]
-    overlay_alpha = image[:, :, 3]
     overlay_color = frame
 
     # Convert frame to HSV and apply blue mask
@@ -275,6 +182,77 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
 
     return main_background
 
+
+def replace_phone_screen_video(image, background_frame, required_frames_for_one_second, frame_width, frame_height):
+    global consecutive_frame_count
+    global detected_for_required_period
+    global start_zooming
+    global global_editor_config
+
+    # Преобразуем изображение в нужный формат для сегментации
+    frame_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+
+    result = mediapipe_segmentor.process(frame_rgb)
+    segmentation_mask = result.segmentation_mask
+
+    overlay_alpha = (segmentation_mask * 255).astype(np.uint8)
+    overlay_color = image
+
+    hsv_frame = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    blue_mask = cv2.inRange(hsv_frame, global_editor_config.lower_blue, global_editor_config.upper_blue)
+    blurred_mask = cv2.GaussianBlur(blue_mask, (5, 5), 0)
+    kernel = np.ones((5, 5), np.uint8)
+    blue_mask_cleaned = cv2.morphologyEx(blurred_mask, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(blue_mask_cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    image[blue_mask != 0] = [0, 0, 0]
+
+    if not contours:
+        main_background = apply_background(overlay_alpha, overlay_color, background_frame,
+                                                                    frame_width, frame_height)
+        return main_background
+
+    filtered_contours = [c for c in contours if cv2.contourArea(c) > 1700]
+    if not filtered_contours:
+        main_background = apply_background(overlay_alpha, overlay_color, background_frame,
+                                                                     frame_width, frame_height)
+        return main_background
+
+    largest_contour = max(filtered_contours, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(largest_contour)
+
+    background_phone_frame_resized = cv2.resize(background_frame, (w, h))
+
+    roi = image[y:y + h, x:x + w]
+
+    phone_screen_mask = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
+    cv2.drawContours(phone_screen_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
+
+    phone_screen_mask_roi = phone_screen_mask[y:y + h, x:x + w]
+    background_with_mask = cv2.bitwise_and(background_phone_frame_resized, background_phone_frame_resized,
+                                               mask=phone_screen_mask_roi)
+    inverse_mask = cv2.bitwise_not(phone_screen_mask_roi)
+    roi_with_edges = cv2.bitwise_and(roi, roi, mask=inverse_mask)
+
+    image[y:y + h, x:x + w] = cv2.add(roi_with_edges, background_with_mask)
+
+    consecutive_frame_count += 1
+
+    main_background = apply_background(overlay_alpha, overlay_color, background_frame,
+                                                                frame_width, frame_height)
+
+    if start_zooming:
+        global_editor_config.zoom_scale += global_editor_config.zoom_increment
+        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, frame_width,
+                                                frame_height, global_editor_config.zoom_scale)
+
+    if not start_zooming and consecutive_frame_count >= required_frames_for_one_second:
+        detected_for_required_period = True
+        start_zooming = True
+        print("Background detected for more than one second.")
+
+    return main_background
 
 def create_temp_video(source_path, output_dir, fps):
     base_name = os.path.splitext(os.path.basename(source_path))[0]
