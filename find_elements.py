@@ -51,18 +51,19 @@ def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
     return templates
 
 
-def apply_zoom(frame: np.ndarray, center: Tuple[int, int], zoom_factor: float, width: int, height: int) -> np.ndarray:
-    """Applies zoom to the frame around a specified center."""
+def apply_zoom(frame: np.ndarray, center: Tuple[int, int], active_template: Template, width: int, height: int) -> np.ndarray:
+    """Applies zoom to the frame around a specified center with boundary checks."""
     center_x, center_y = center
-    new_w, new_h = int(width / zoom_factor), int(height / zoom_factor)
 
-    # Position the zoom area based on the center
-    new_top_left_x = max(0, center_x - new_w // 2)
-    new_top_left_y = max(0, center_y - new_h // 2)
-    new_bottom_right_x = min(new_top_left_x + new_w, width)
-    new_bottom_right_y = min(new_top_left_y + new_h, height)
+    new_w, new_h = int(width / active_template.zoom_factor), int(height / active_template.zoom_factor)
 
-    # Crop and resize the frame to apply zoom
+    # Ensure the zoom area doesn’t go out of bounds
+    new_top_left_x = max(0, min(center_x - new_w // 2, width - new_w))
+    new_top_left_y = max(0, min(center_y - new_h // 2, height - new_h))
+    new_bottom_right_x = new_top_left_x + new_w
+    new_bottom_right_y = new_top_left_y + new_h
+
+    # Crop and resize the frame for zoom
     roi_zoomed = frame[new_top_left_y:new_bottom_right_y, new_top_left_x:new_bottom_right_x]
     zoomed_frame = cv2.resize(roi_zoomed, (width, height))
 
@@ -85,36 +86,40 @@ def update_zoom(zoom_factor: float, zoom_direction: int, zoom_speed: float, max_
 
 
 def apply_darkening(frame: np.ndarray, template_gray: np.ndarray, scale: float, top_left: Tuple[int, int], darkness: float) -> np.ndarray:
-    """Applies darkening around the area of the template."""
+    """Applies darkening around the area of the template in an ideal circular mask."""
     if darkness <= 0:
         return frame
 
-    # Create a darkened version of the frame based on the darkness level
+    # Центр найденного элемента
+    w, h = template_gray.shape[::-1]
+    w_scaled, h_scaled = int(w * scale), int(h * scale)
+    center_x = top_left[0] + w_scaled // 2
+    center_y = top_left[1] + h_scaled // 2
+
+    # Радиус как увеличенная диагональ элемента (например, на 20% больше)
+    radius = int(0.5 * ((w_scaled ** 2 + h_scaled ** 2) ** 0.5) * 1.2)
+
+    # Создаем затемненную версию кадра
     darkened_frame = cv2.addWeighted(frame, 1 - darkness, np.zeros_like(frame), darkness, 0)
+
+    # Создаем маску с идеальной окружностью
     mask = np.ones_like(frame, dtype=np.uint8) * 255
+    cv2.circle(mask, (center_x, center_y), radius, (0, 0, 0), thickness=cv2.FILLED)
 
-    # Find contours and create a darkened area
-    contours, _ = cv2.findContours(template_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for contour in contours:
-        scaled_contour = contour * scale
-        scaled_contour += np.array(top_left)
-        cv2.drawContours(mask, [scaled_contour.astype(int)], -1, (0, 0, 0), thickness=cv2.FILLED)
-
-    # Apply the mask to combine the original frame and the darkened frame
+    # Применяем маску для затемнения области вокруг найденного элемента
     frame = np.where(mask == 0, frame, darkened_frame)
     return frame
 
 
-def update_darkness(darkness: float, zoom_direction: int, darkening_step: float) -> float:
+def update_darkness(darkness: float) -> float:
     """Updates the level of darkness based on the zoom direction."""
-    darkness += zoom_direction * darkening_step
+    darkness += config.darkening_speed
     darkness = min(max(darkness, 0.0), 0.8)  # Clamp darkness between 0 and 0.8
     return darkness
 
 
-def process_template(templates: List[Template], frame: np.ndarray, width: int, height: int, zoom_speed: float, max_zoom_factor: float):
+def process_template(templates: List[Template], frame: np.ndarray):
     """Selects the current active template, updates its state, and returns data for processing."""
-    # global best_match, best_val
     # Identify the first unfinished template
     active_template = next((template for template in templates if not template.completed), None)
 
@@ -144,10 +149,9 @@ def process_template(templates: List[Template], frame: np.ndarray, width: int, h
 
         # Update zoom and darkness based on current state
         active_template.zoom_factor, active_template.zoom_direction = update_zoom(
-            active_template.zoom_factor, active_template.zoom_direction, zoom_speed, max_zoom_factor
+            active_template.zoom_factor, active_template.zoom_direction, config.zoom_speed, config.max_zoom_factor
         )
-        darkening_step = 0.8 / ((max_zoom_factor - 1) / zoom_speed)
-        active_template.darkness = update_darkness(active_template.darkness, active_template.zoom_direction, darkening_step)
+        active_template.darkness = update_darkness(active_template.darkness)
 
         # Check if the template processing is complete
         if active_template.zoom_factor == 1.0 and active_template.zoom_direction == 1:
@@ -170,9 +174,7 @@ def elements_search(frame: np.ndarray, templates: List[Template], count: int) ->
     frame = cv2.fastNlMeansDenoisingColored(frame)
 
     # Get active template and processing data
-    active_template, processing_data, state = process_template(
-        templates, frame, width, height, config.zoom_speed, config.max_zoom_factor
-    )
+    active_template, processing_data, state = process_template(templates, frame)
 
     # If all templates are processed, return the original frame
     if active_template is None or processing_data is None:
@@ -187,7 +189,7 @@ def elements_search(frame: np.ndarray, templates: List[Template], count: int) ->
     top_left, scale, center, darkness = processing_data
     template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
     frame = apply_darkening(frame, template_gray, scale, top_left, darkness)  # Apply darkening effect
-    frame = apply_zoom(frame, center, active_template.zoom_factor, width, height)  # Apply zoom effect
+    frame = apply_zoom(frame, center, active_template, width, height)  # Apply zoom effect
 
     return frame
 

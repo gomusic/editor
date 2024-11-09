@@ -18,6 +18,7 @@ class Template:
         self._completed = False
         self.best_match = 0
         self.best_val = 0
+        self.initial_pass = True
 
     @property
     def zoom_factor(self):
