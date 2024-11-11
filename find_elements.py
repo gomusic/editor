@@ -51,9 +51,9 @@ def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
     return templates
 
 
-def apply_zoom(frame: np.ndarray, center: Tuple[int, int], active_template: Template, width: int, height: int) -> np.ndarray:
+def apply_zoom(frame: np.ndarray, active_template: Template, width: int, height: int) -> np.ndarray:
     """Applies zoom to the frame around a specified center with boundary checks."""
-    center_x, center_y = center
+    center_x, center_y = active_template.best_match[0]
 
     new_w, new_h = int(width / active_template.zoom_factor), int(height / active_template.zoom_factor)
 
@@ -85,29 +85,30 @@ def update_zoom(zoom_factor: float, zoom_direction: int, zoom_speed: float, max_
     return zoom_factor, zoom_direction
 
 
-def apply_darkening(frame: np.ndarray, template_gray: np.ndarray, scale: float, top_left: Tuple[int, int], darkness: float) -> np.ndarray:
-    """Applies darkening around the area of the template in an ideal circular mask."""
-    if darkness <= 0:
+def apply_darkening(frame: np.ndarray, active_template: Template) -> np.ndarray:
+    """Applies darkening around the center with a shifted height equal to the radius, using an ideal circular mask."""
+    if active_template.darkness <= 0:
         return frame
 
-    # Центр найденного элемента
-    w, h = template_gray.shape[::-1]
-    w_scaled, h_scaled = int(w * scale), int(h * scale)
-    center_x = top_left[0] + w_scaled // 2
-    center_y = top_left[1] + h_scaled // 2
+    # Create a darkened version of the frame
+    darkened_frame = cv2.addWeighted(frame, 1 - active_template.darkness, np.zeros_like(frame), active_template.darkness, 0)
 
-    # Радиус как увеличенная диагональ элемента (например, на 20% больше)
-    radius = int(0.5 * ((w_scaled ** 2 + h_scaled ** 2) ** 0.5) * 1.2)
+    # Get center coordinates and radius
+    center_x, center_y = active_template.best_match[0]
+    radius = active_template.best_match[1]
+    new_best_match = ((center_x, center_y), int(radius))
+    # Shift the mask center up by the radius
+    if active_template.radius_raising and not active_template.first_initial:
+        shifted_center_y = max(center_y - (radius + 6), 0)  # Ensure it stays within the frame
+        new_best_match = ((center_x, shifted_center_y), int(radius))
 
-    # Создаем затемненную версию кадра
-    darkened_frame = cv2.addWeighted(frame, 1 - darkness, np.zeros_like(frame), darkness, 0)
-
-    # Создаем маску с идеальной окружностью
+    # Create the mask with a circular region at the new height
     mask = np.ones_like(frame, dtype=np.uint8) * 255
-    cv2.circle(mask, (center_x, center_y), radius, (0, 0, 0), thickness=cv2.FILLED)
+    cv2.circle(mask, new_best_match[0], new_best_match[1], (0, 0, 0), thickness=cv2.FILLED)
 
-    # Применяем маску для затемнения области вокруг найденного элемента
+    # Apply the mask to darken the area around the specified center
     frame = np.where(mask == 0, frame, darkened_frame)
+    active_template.first_initial = False
     return frame
 
 
@@ -130,22 +131,12 @@ def process_template(templates: List[Template], frame: np.ndarray):
     # Search for a match for the active template in the current frame
     find_best_match_full(frame, active_template)
 
-    template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
-    w, h = template_gray.shape[::-1]
-
     print('best match', active_template.best_match)
     print('best val', active_template.best_val)
 
     # If a match is found, update its state
     if active_template.best_match and active_template.best_val >= active_template.threshold:
-        print(active_template.threshold)
-        print(active_template.best_val)
-        print(active_template.best_match)
         print('Great!')
-        top_left = active_template.best_match[0]
-        scale = active_template.best_match[1]
-        w_scaled, h_scaled = int(w * scale), int(h * scale)
-        center = (top_left[0] + w_scaled // 2, top_left[1] + h_scaled // 2)
 
         # Update zoom and darkness based on current state
         active_template.zoom_factor, active_template.zoom_direction = update_zoom(
@@ -158,9 +149,7 @@ def process_template(templates: List[Template], frame: np.ndarray):
             active_template.completed = True  # Mark as completed if zoom is reset
 
         # Return relevant data for processing
-        return active_template, (top_left, scale, center, active_template.darkness), active_template
-    else:
-        return active_template, None, active_template
+        return active_template
 
 
 def frame_to_base64(frame):
@@ -174,10 +163,10 @@ def elements_search(frame: np.ndarray, templates: List[Template], count: int) ->
     frame = cv2.fastNlMeansDenoisingColored(frame)
 
     # Get active template and processing data
-    active_template, processing_data, state = process_template(templates, frame)
+    active_template = process_template(templates, frame)
 
     # If all templates are processed, return the original frame
-    if active_template is None or processing_data is None:
+    if not isinstance(active_template, Template) or active_template.best_match is None:
         return frame
 
     if active_template and active_template.background_hex_color:
@@ -186,10 +175,8 @@ def elements_search(frame: np.ndarray, templates: List[Template], count: int) ->
         print('Template detaction, frame: ', count)
 
     # Process the frame with the current template
-    top_left, scale, center, darkness = processing_data
-    template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
-    frame = apply_darkening(frame, template_gray, scale, top_left, darkness)  # Apply darkening effect
-    frame = apply_zoom(frame, center, active_template, width, height)  # Apply zoom effect
+    frame = apply_darkening(frame, active_template)  # Apply darkening effect
+    frame = apply_zoom(frame, active_template, width, height)  # Apply zoom effect
 
     return frame
 
@@ -307,8 +294,7 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
             0.05
         )
 
-    best_match = None
-    best_score = 0
+    best_val = 0
 
     for scale in scales:
         resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))
@@ -338,19 +324,20 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
                     roi_mask = mask[y:y + h_contour, x:x + w_contour]
                     match_score = np.sum(cv2.bitwise_and(roi_mask, resized_binary_mask) == 255)
 
-                    if match_score > best_score:
-                        best_score = match_score
-                        best_match = ((x + max_loc[0], y + max_loc[1]), scale)
+                    if match_score > best_val:
+                        (x, y), radius = cv2.minEnclosingCircle(contour)
+                        center = (int(x), int(y))
+                        radius = int(radius)
+                        best_val = match_score
+                        active_template.best_match = (center, radius)
+
         else:
             result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
             if max_val > active_template.best_val:
                 active_template.best_val = max_val
-                active_template.best_match = (max_loc, scale)
-
-    if best_match:
-        active_template.best_match = best_match
+                get_center_radius(w, h, active_template, scale, max_loc)
 
 
 def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray) -> bool:
@@ -361,6 +348,16 @@ def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_colo
         if not (lower_bound <= avg <= upper_bound):
             return False  # Return false if any channel is out of bounds
     return True  # Return true if all channels are within bounds
+
+
+def get_center_radius(w: int, h: int, active_template: Template, scale: float, top_left: Tuple[int, int]) -> np.ndarray:
+    w_scaled, h_scaled = int(w * scale), int(h * scale)
+    center_x = top_left[0] + w_scaled // 2
+    center_y = top_left[1] + h_scaled // 2
+    center = (center_x, center_y)
+    # Радиус как увеличенная диагональ элемента (например, на 20% больше)
+    radius = int(0.5 * ((w_scaled ** 2 + h_scaled ** 2) ** 0.5) * 1.2)
+    active_template.best_match = (center, radius)
 
 
 def is_mostly_white(frame, sensitivity=90, threshold=0.8):
