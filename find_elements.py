@@ -126,7 +126,7 @@ def process_template(templates: List[Template], frame: np.ndarray):
 
     # If all templates are finished, return None
     if active_template is None:
-        return None, None, None
+        return None
 
     # Search for a match for the active template in the current frame
     find_best_match_full(frame, active_template)
@@ -278,6 +278,11 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
         mask = get_hsv_mask(frame, lower, upper)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # Определяем порог для больших контуров
+        contour_areas = [cv2.contourArea(contour) for contour in contours]
+        max_area = max(contour_areas) if contour_areas else 0
+        area_threshold = max_area * config.contours_threshold  # Берём контуры, которые занимают 70% от самой большой площади
+
     template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
     template_gray = cv2.fastNlMeansDenoising(template_gray)
     w, h = template_gray.shape[::-1]
@@ -294,21 +299,23 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
             0.05
         )
 
-    best_val = 0
+    best_score = 0
 
     for scale in scales:
         resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))
-        if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[1]:
-            continue
 
         if active_template.background_hex_color:
-            for contour in contours:
+            for contour, area in zip(contours, contour_areas):
+                if area < area_threshold:
+                    continue
+                (x, y), radius = cv2.minEnclosingCircle(contour)
+                center = (int(x), int(y))
+                radius = int(radius)
+                # Вычисляем область интереса (ROI) для текущего контура
                 x, y, w_contour, h_contour = cv2.boundingRect(contour)
                 roi = image_gray[y:y + h_contour, x:x + w_contour]
 
-                if roi.shape[0] < resized_template.shape[0] or roi.shape[1] < resized_template.shape[1]:
-                    continue
-
+                # Сопоставляем шаблон с ROI
                 result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)
                 _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
@@ -316,19 +323,18 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
                     active_template.best_val = max_val
                     active_template.best_match = ((x + max_loc[0], y + max_loc[1]), scale)
 
+                    # Создаём двоичную маску для шаблона
                     _, binary_mask = cv2.threshold(resized_template, 1, 255, cv2.THRESH_BINARY)
-
                     resized_binary_mask = cv2.resize(binary_mask, (roi.shape[1], roi.shape[0]),
                                                      interpolation=cv2.INTER_NEAREST)
 
+                    # Проверяем совпадение масок
                     roi_mask = mask[y:y + h_contour, x:x + w_contour]
                     match_score = np.sum(cv2.bitwise_and(roi_mask, resized_binary_mask) == 255)
 
-                    if match_score > best_val:
-                        (x, y), radius = cv2.minEnclosingCircle(contour)
-                        center = (int(x), int(y))
-                        radius = int(radius)
-                        best_val = match_score
+                    # Обновляем наилучший результат, если счёт совпадений больше текущего
+                    if match_score > best_score:
+                        best_score = match_score
                         active_template.best_match = (center, radius)
 
         else:
@@ -545,7 +551,7 @@ def debug_image(image = None, image_path = None):
 if __name__ == ('__main__'):
     # lower, upper, lower2, upper2 = hex_to_hsv_range('#ffffff', hue_tol=0, sat_tol=0, val_tol=30)
     # lower, upper, l2, u2 = hex_to_hsv_range('#2764FB')
-    # image = cv2.imread("new_tests/img_4.png")
+    # image = cv2.imread("image_test_for_link.jpg")
     # image = get_hsv_mask(image, lower, upper)
     # cv2.imwrite('res2.jpg', image)
     # hsv_lower = np.array([24, 200, 255])
@@ -554,7 +560,9 @@ if __name__ == ('__main__'):
     # exit(0)
     #get_frame_for_color('temp/back_tiktok_temp.mp4')
     data = [
-        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.8},
-        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 15, 'max': 20}, 'threshold': 0.6, 'background_hex_color': '#2764FB'}
+        # {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
+        # {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0, 'background_hex_color': '#2764FB', 'radius_raising': True}
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0,
+         'background_hex_color': '#2764FB'}
     ]
-    get_video(f'temp/phone_tiktok_temp.mp4', f'back_test_1.mp4', data)
+    get_video(f'output_with_elemets_test.mp4', f'back_test_1.mp4', data)
