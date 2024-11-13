@@ -273,14 +273,24 @@ def apply_blur(frame, blur_radius=10):
     return np.array(img)
 
 
-def create_resized_video(source_path, output_dir, fps, target_width, target_height, duration=None):
-    base_name = os.path.splitext(os.path.basename(source_path))[0]
-    temp_path = os.path.join(output_dir, f"{base_name}_temp.mp4")
+def create_resized_video(fps, target_width, target_height, duration=None, target='main_background'):
+    global global_editor_config
+    if target == 'phone_background':
+        temp_video_path = os.path.join(global_editor_config.phone_background_dir)
+        source_video = global_editor_config.phone_background
+    else:
+        temp_video_path = os.path.join(global_editor_config.full_background_dir)
+        source_video = global_editor_config.full_background
+    source_video_without_extension = os.path.splitext(os.path.basename(source_video))[0]
+    temp_video = os.path.join(temp_video_path, f'{source_video_without_extension}_temp.mp4')
+
+    if not os.path.exists(temp_video_path):
+        os.makedirs(temp_video_path)
 
     # Create temp video if it doesn't exist
-    if not os.path.exists(temp_path):
+    if not os.path.exists(temp_video):
         # Load the main video
-        video_clip = mp.VideoFileClip(source_path).set_fps(fps)
+        video_clip = mp.VideoFileClip(source_video).set_fps(fps)
 
         # Target aspect ratio
         target_aspect_ratio = target_width / target_height
@@ -326,9 +336,9 @@ def create_resized_video(source_path, output_dir, fps, target_width, target_heig
         ).set_duration(duration)
 
         # Save the temporary video file
-        final_video.write_videofile(temp_path, codec='libx264', fps=fps)
+        final_video.write_videofile(temp_video, codec='libx264', fps=fps)
 
-    return temp_path
+    return temp_video
 
 
 # Main chroma replace function
@@ -342,20 +352,38 @@ def chroma_replace(editor_config):
     frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
     duration = frame_count / fps
 
-    if not os.path.exists('temp'):
-        os.makedirs('temp')
+    # Создание директорий, если их нет
+    if not os.path.exists(global_editor_config.temp_dir):
+        os.makedirs(global_editor_config.temp_dir)
 
-    # Paths for full background and phone background videos
-    temp_full_back_path = create_resized_video(global_editor_config.full_background, 'temp', fps, target_width=frame_width, target_height=frame_height, duration=duration)
-    temp_phone_back_path = create_resized_video(global_editor_config.phone_background, 'temp', fps, target_width=frame_width, target_height=frame_height)
+    # Пути для фонов
+    temp_full_back_path = create_resized_video(
+        fps,
+        target_width=frame_width,
+        target_height=frame_height,
+        duration=duration
+    )
+    temp_phone_back_path = create_resized_video(
+        fps,
+        target_width=frame_width,
+        target_height=frame_height,
+        target='phone_background'
+    )
     background_phone_video = cv2.VideoCapture(temp_phone_back_path)
-
     background_video = cv2.VideoCapture(temp_full_back_path)
 
-    output_video = cv2.VideoWriter(f'{global_editor_config.output_video_name}.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
-    required_frames_for_one_second = fps
-    folder_path = f'./robust/{global_editor_config.filename_without_exstention}_output_{global_editor_config.robust_output_type}'
+    # Путь для выходного видео
+    output_video = cv2.VideoWriter(
+        global_editor_config.output_video_path,
+        cv2.VideoWriter_fourcc(*'mp4v'),
+        fps,
+        (frame_width, frame_height)
+    )
 
+    required_frames_for_one_second = fps
+    folder_path = global_editor_config.output_composition_path
+
+    # Инициализация итератора кадров на основе типа вывода RVM
     if global_editor_config.robust_output_type == 'png':
         frame_iterator = FIter(path=folder_path)
     elif global_editor_config.robust_output_type == 'video':
@@ -381,12 +409,15 @@ def chroma_replace(editor_config):
                 ret_bg, background_phone_frame = background_phone_video.read()
 
         if global_editor_config.robust_output_type == 'png':
-            processed_frame = replace_phone_screen_png(frame, background_frame, background_phone_frame, required_frames_for_one_second,
-                                                       frame_width, frame_height)
-
+            processed_frame = replace_phone_screen_png(
+                frame, background_frame, background_phone_frame,
+                required_frames_for_one_second, frame_width, frame_height
+            )
         elif global_editor_config.robust_output_type == 'video':
-            processed_frame = replace_phone_screen_video(frame, background_frame, required_frames_for_one_second,
-                                                         frame_width, frame_height)
+            processed_frame = replace_phone_screen_video(
+                frame, background_frame,
+                required_frames_for_one_second, frame_width, frame_height
+            )
 
         output_video.write(processed_frame)
 
@@ -397,7 +428,7 @@ def chroma_replace(editor_config):
         main_background = cv2.resize(background_phone_frame, (frame_width, frame_height))
         output_video.write(main_background)
 
-
+    # Освобождаем ресурсы
     output_video.release()
     background_phone_video.release()
     cv2.destroyAllWindows()
