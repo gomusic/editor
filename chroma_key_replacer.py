@@ -103,6 +103,7 @@ def apply_background(overlay_alpha, overlay_color, background_frame, frame_width
     roi_bg = main_background[:rows, :cols]
 
     for c in range(3):
+        overlay_color = extract_green_layers(overlay_color, global_editor_config.lower_green, global_editor_config.upper_green)
         roi_bg[:, :, c] = roi_bg[:, :, c] * (1 - overlay_alpha) + overlay_color[:, :, c] * overlay_alpha
 
     main_background[:rows, :cols] = roi_bg
@@ -135,13 +136,11 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
 
     if not contours:
         main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
-        main_background = extract_green_layers(main_background, global_editor_config.lower_green, global_editor_config.upper_green)
         return main_background
 
     filtered_contours = [c for c in contours if cv2.contourArea(c) > 1700]
     if not filtered_contours:
         main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
-        main_background = extract_green_layers(main_background, global_editor_config.lower_green, global_editor_config.upper_green)
         return main_background
 
     largest_contour = max(filtered_contours, key=cv2.contourArea)
@@ -165,7 +164,6 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
     # Apply green layer extraction only outside the phone frame area
     phone_frame_mask_inv = cv2.bitwise_not(phone_screen_mask)  # Инвертируем маску телефона
     main_background_no_phone = cv2.bitwise_and(main_background, main_background, mask=phone_frame_mask_inv)
-    main_background_no_phone = extract_green_layers(main_background_no_phone, global_editor_config.lower_green, global_editor_config.upper_green)
 
     # Объединяем изображение с удаленным зеленым слоем и областью телефона
     main_background = cv2.add(main_background_no_phone, cv2.bitwise_and(main_background, main_background, mask=phone_screen_mask))
