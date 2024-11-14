@@ -37,11 +37,15 @@ def main():
 
     # Проверка наличия replace файла
     if not os.path.exists(editor_config.replace_output_video_folder_path):
+        print('1. Replace colors in file')
         os.makedirs(editor_config.replace_output_video_folder_path)
         replace(editor_config)
+    else:
+        print(f"Founded color replaced file {editor_config.replace_output_video_folder_path}, skipped...")
 
     # Проверка наличия директории композиций
     if not os.path.exists(editor_config.output_composition_path):
+        print('2. Removing background from video')
         os.makedirs(editor_config.output_composition_path)
 
         # Загрузка модели матирования
@@ -76,7 +80,10 @@ def main():
                 downsample_ratio=None,
                 seq_chunk=24
             )
+    else:
+        print(f'Founded removed background video {editor_config.output_composition_path}, skipped...')
 
+    print('3. CHROMA KEY REPLACING')
     chroma_replace(editor_config)
 
     data = [
