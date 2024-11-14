@@ -121,7 +121,6 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
 
     frame = image[:, :, :3]
     overlay_alpha = image[:, :, 3]
-
     overlay_color = frame
 
     # Convert frame to HSV and apply blue mask
@@ -134,74 +133,55 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
     contours, _ = cv2.findContours(blue_mask_cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     frame[blue_mask != 0] = [0, 0, 0]
 
-    # If no contours are detected, return the background with the overlay
     if not contours:
         main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
-
-        # Apply green layer extraction to the main background after all operations
-        main_background = extract_green_layers(main_background, global_editor_config.lower_green,
-                                               global_editor_config.upper_green)
-
+        main_background = extract_green_layers(main_background, global_editor_config.lower_green, global_editor_config.upper_green)
         return main_background
 
-    # Filter contours based on area
-    filtered_contours = [c for c in contours if cv2.contourArea(c) > 1700]  # Adjust the threshold as needed
+    filtered_contours = [c for c in contours if cv2.contourArea(c) > 1700]
     if not filtered_contours:
         main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
-
-        # Apply green layer extraction to the main background after all operations
-        main_background = extract_green_layers(main_background, global_editor_config.lower_green,
-                                               global_editor_config.upper_green)
-
+        main_background = extract_green_layers(main_background, global_editor_config.lower_green, global_editor_config.upper_green)
         return main_background
 
-    # Get the largest contour (phone screen) and its bounding rectangle
     largest_contour = max(filtered_contours, key=cv2.contourArea)
     x, y, w, h = cv2.boundingRect(largest_contour)
-
-    # Resize the phone frame to fit the detected phone screen area
     background_phone_frame_resized = cv2.resize(phone_frame, (w, h))
+    roi = frame[y:y + h, x:x + w]
 
-    roi = frame[y:y + h, x:x + w]  # Region of interest
-
-    # Create a mask for the phone screen
     phone_screen_mask = np.zeros((frame.shape[0], frame.shape[1]), dtype=np.uint8)
     cv2.drawContours(phone_screen_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
     cv2.drawContours(phone_screen_mask, [largest_contour], -1, (0, 0, 0), thickness=10, lineType=cv2.LINE_AA)
 
-    # Apply the mask to replace the phone screen area with the phone_frame
     phone_screen_mask_roi = phone_screen_mask[y:y + h, x:x + w]
-    background_with_mask = cv2.bitwise_and(background_phone_frame_resized, background_phone_frame_resized,
-                                           mask=phone_screen_mask_roi)
+    background_with_mask = cv2.bitwise_and(background_phone_frame_resized, background_phone_frame_resized, mask=phone_screen_mask_roi)
     inverse_mask = cv2.bitwise_not(phone_screen_mask_roi)
     roi_with_edges = cv2.bitwise_and(roi, roi, mask=inverse_mask)
-
-    # Combine the original frame and the new phone frame background for the phone screen area
     frame[y:y + h, x:x + w] = cv2.add(roi_with_edges, background_with_mask)
 
-    # Update detection count
     consecutive_frame_count += 1
-
-    # Apply background blending after all operations
     main_background = apply_background(overlay_alpha, overlay_color, background_frame, frame_width, frame_height)
+
+    # Apply green layer extraction only outside the phone frame area
+    phone_frame_mask_inv = cv2.bitwise_not(phone_screen_mask)  # Инвертируем маску телефона
+    main_background_no_phone = cv2.bitwise_and(main_background, main_background, mask=phone_frame_mask_inv)
+    main_background_no_phone = extract_green_layers(main_background_no_phone, global_editor_config.lower_green, global_editor_config.upper_green)
+
+    # Объединяем изображение с удаленным зеленым слоем и областью телефона
+    main_background = cv2.add(main_background_no_phone, cv2.bitwise_and(main_background, main_background, mask=phone_screen_mask))
 
     # Check if zooming should start
     if start_zooming:
         global_editor_config.zoom_scale += global_editor_config.zoom_increment
-        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, phone_frame, frame_width,
-                                               frame_height, global_editor_config.zoom_scale)
+        main_background = apply_zoom_to_center(main_background, (x, y, w, h), background_frame, phone_frame, frame_width, frame_height, global_editor_config.zoom_scale)
 
-    # Check if the background frame is detected for more than 1 second
     if not start_zooming and consecutive_frame_count >= required_frames_for_one_second:
         detected_for_required_period = True
         start_zooming = True
         print("Background detected for more than one second.")
 
-    # Apply green layer extraction to the main background after all operations
-    main_background = extract_green_layers(main_background, global_editor_config.lower_green,
-                                           global_editor_config.upper_green)
-
     return main_background
+
 
 def replace_phone_screen_video(image, background_frame, required_frames_for_one_second, frame_width, frame_height):
     global consecutive_frame_count
@@ -274,7 +254,6 @@ def replace_phone_screen_video(image, background_frame, required_frames_for_one_
 
     return main_background
 
-
 def create_temp_video(source_path, output_dir, fps):
     base_name = os.path.splitext(os.path.basename(source_path))[0]
     temp_path = os.path.join(output_dir, f"{base_name}_temp.mp4")
@@ -294,14 +273,24 @@ def apply_blur(frame, blur_radius=10):
     return np.array(img)
 
 
-def create_resized_video(source_path, output_dir, fps, target_width, target_height, duration=None):
-    base_name = os.path.splitext(os.path.basename(source_path))[0]
-    temp_path = os.path.join(output_dir, f"{base_name}_temp.mp4")
+def create_resized_video(fps, target_width, target_height, duration=None, target='main_background'):
+    global global_editor_config
+    if target == 'phone_background':
+        temp_video_path = os.path.join(global_editor_config.phone_background_dir)
+        source_video = global_editor_config.phone_background
+    else:
+        temp_video_path = os.path.join(global_editor_config.full_background_dir)
+        source_video = global_editor_config.full_background
+    source_video_without_extension = os.path.splitext(os.path.basename(source_video))[0]
+    temp_video = os.path.join(temp_video_path, f'{source_video_without_extension}_temp.mp4')
+
+    if not os.path.exists(temp_video_path):
+        os.makedirs(temp_video_path)
 
     # Create temp video if it doesn't exist
-    if not os.path.exists(temp_path):
+    if not os.path.exists(temp_video):
         # Load the main video
-        video_clip = mp.VideoFileClip(source_path).set_fps(fps)
+        video_clip = mp.VideoFileClip(source_video).set_fps(fps)
 
         # Target aspect ratio
         target_aspect_ratio = target_width / target_height
@@ -347,9 +336,9 @@ def create_resized_video(source_path, output_dir, fps, target_width, target_heig
         ).set_duration(duration)
 
         # Save the temporary video file
-        final_video.write_videofile(temp_path, codec='libx264', fps=fps)
+        final_video.write_videofile(temp_video, codec='libx264', fps=fps)
 
-    return temp_path
+    return temp_video
 
 
 # Main chroma replace function
@@ -363,20 +352,38 @@ def chroma_replace(editor_config):
     frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
     duration = frame_count / fps
 
-    if not os.path.exists('temp'):
-        os.makedirs('temp')
+    # Создание директорий, если их нет
+    if not os.path.exists(global_editor_config.temp_dir):
+        os.makedirs(global_editor_config.temp_dir)
 
-    # Paths for full background and phone background videos
-    temp_full_back_path = create_resized_video(global_editor_config.full_background, 'temp', fps, target_width=frame_width, target_height=frame_height, duration=duration)
-    temp_phone_back_path = create_resized_video(global_editor_config.phone_background, 'temp', fps, target_width=frame_width, target_height=frame_height)
+    # Пути для фонов
+    temp_full_back_path = create_resized_video(
+        fps,
+        target_width=frame_width,
+        target_height=frame_height,
+        duration=duration
+    )
+    temp_phone_back_path = create_resized_video(
+        fps,
+        target_width=frame_width,
+        target_height=frame_height,
+        target='phone_background'
+    )
     background_phone_video = cv2.VideoCapture(temp_phone_back_path)
-
     background_video = cv2.VideoCapture(temp_full_back_path)
 
-    output_video = cv2.VideoWriter(f'{global_editor_config.output_video_name}.mp4', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
-    required_frames_for_one_second = fps
-    folder_path = f'./robust/{global_editor_config.filename_without_exstention}_output_{global_editor_config.robust_output_type}'
+    # Путь для выходного видео
+    output_video = cv2.VideoWriter(
+        global_editor_config.output_video_path,
+        cv2.VideoWriter_fourcc(*'mp4v'),
+        fps,
+        (frame_width, frame_height)
+    )
 
+    required_frames_for_one_second = fps
+    folder_path = global_editor_config.output_composition_path
+
+    # Инициализация итератора кадров на основе типа вывода RVM
     if global_editor_config.robust_output_type == 'png':
         frame_iterator = FIter(path=folder_path)
     elif global_editor_config.robust_output_type == 'video':
@@ -402,12 +409,15 @@ def chroma_replace(editor_config):
                 ret_bg, background_phone_frame = background_phone_video.read()
 
         if global_editor_config.robust_output_type == 'png':
-            processed_frame = replace_phone_screen_png(frame, background_frame, background_phone_frame, required_frames_for_one_second,
-                                                       frame_width, frame_height)
-
+            processed_frame = replace_phone_screen_png(
+                frame, background_frame, background_phone_frame,
+                required_frames_for_one_second, frame_width, frame_height
+            )
         elif global_editor_config.robust_output_type == 'video':
-            processed_frame = replace_phone_screen_video(frame, background_frame, required_frames_for_one_second,
-                                                         frame_width, frame_height)
+            processed_frame = replace_phone_screen_video(
+                frame, background_frame,
+                required_frames_for_one_second, frame_width, frame_height
+            )
 
         output_video.write(processed_frame)
 
@@ -418,7 +428,7 @@ def chroma_replace(editor_config):
         main_background = cv2.resize(background_phone_frame, (frame_width, frame_height))
         output_video.write(main_background)
 
-
+    # Освобождаем ресурсы
     output_video.release()
     background_phone_video.release()
     cv2.destroyAllWindows()

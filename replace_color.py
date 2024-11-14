@@ -69,21 +69,21 @@ def process_frame(frame, green_lower, green_upper, radius=20):
 
 
 # Main function to process the video
-def replace(video_processing):
-    video = cv2.VideoCapture(video_processing.original_video)
+def replace(editor_config):
+    video = cv2.VideoCapture(editor_config.original_video)
     frame_width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(video.get(cv2.CAP_PROP_FPS))
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    output_video = cv2.VideoWriter(f'{video_processing.replace_output_video}', fourcc, fps, (frame_width, frame_height))
+    output_video = cv2.VideoWriter(editor_config.replace_output_video_path, fourcc, fps, (frame_width, frame_height))
 
     while True:
         ret, frame = video.read()
         if not ret:
             break
 
-        processed_frame = process_frame(frame, video_processing.lower_green, video_processing.upper_green)
+        processed_frame = process_frame(frame, editor_config.lower_green, editor_config.upper_green)
         output_video.write(processed_frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):

@@ -75,6 +75,7 @@ python pipeline.py --original_video <path_to_original_video> \
     --replace_output_video: (Optional) Path to the video output after color replacement is applied.
     --output_composition: (Optional) Path to the AI-processed final video composition.
     --processing_model: (Optional) Model for file processing. Options: 'cpu' or 'gpu' (cuda). Default: cpu.
+    --output_dir: (Optional) A custom path to save the results. (Default in the project directory is the results folder).
 ```
     
 ### Description of Chroma Keying and Zoom Parameters:

@@ -1,76 +1,79 @@
 import numpy as np
 import os
 
+
 class EditorConfig:
     """
-        Attributes:
-            original_video (str): Path to the original video file.
-            full_background (str): Path to the full background video.
-            phone_background (str): Path to the phone background video.
-            model_path (str): Path to the Robust Video Matting model.
-            zoom_scale (float): Initial zoom scale for the dynamic zoom effect.
-            zoom_increment (float): Increment applied to the zoom per frame.
-            output_video_name (str): Name of the output video file (without extension).
-            lower_blue (np.ndarray): Lower HSV threshold for blue color in chroma key processing.
-            upper_blue (np.ndarray): Upper HSV threshold for blue color in chroma key processing.
-            lower_green (np.ndarray): Lower HSV threshold for green color in chroma key processing.
-            upper_green (np.ndarray): Upper HSV threshold for green color in chroma key processing.
-            robust_output_type (str): Robust Video Matting output type (either "png" for image sequence or "video" for a full video).
-            robust_model (str): Robust Video Matting model type (either resnet50 or mobilenetv3).
-            replace_output_video (str): Path to the video output after color replacement is applied.
-            output_composition (str): Path to the final AI-processed video composition.
-            processing_model (str): File processing model for Robust Video Matting ('cpu' or 'gpu' (cuda)).
+    Class for storing editor settings.
+
+    Attributes:
+        original_video (str): Path to the original video file.
+        full_background (str): Path to the full background video.
+        phone_background (str): Path to the phone background video.
+        model_path (str): Path to the Robust Video Matting model.
+        zoom_scale (float): Initial zoom scale for the dynamic zoom effect.
+        zoom_increment (float): Zoom increment per frame.
+        output_video_name (str): Name of the output video (without extension).
+        lower_blue (np.ndarray): Lower HSV threshold for blue color during processing.
+        upper_blue (np.ndarray): Upper HSV threshold for blue color.
+        lower_green (np.ndarray): Lower HSV threshold for green color.
+        upper_green (np.ndarray): Upper HSV threshold for green color.
+        robust_output_type (str): RVM output type (png for image sequence or video for full video).
+        processing_model (str): Processing type for RVM (cpu or gpu).
+        output_dir (str): Main directory for saving results.
     """
 
-    original_video: str = ''
-    full_background: str = ''
-    phone_background: str = ''
-    model_path: str = '../rvm_resnet50.pth'
-    zoom_scale: float = 0.2
-    zoom_increment: float = 1
-    output_video_name: str = 'output_video'
-    lower_blue: np.ndarray = np.array([80, 50, 80])
-    upper_blue: np.ndarray = np.array([130, 255, 255])
-    lower_green: np.ndarray = np.array([35, 40, 40])
-    upper_green: np.ndarray = np.array([85, 255, 255])
-    robust_output_type: str = 'png'
-    model_type: str = 'resnet50'
-    replace_output_video: str = ''
-    output_composition: str = ''
-    processing_model: str = 'cpu'
-    filename_without_exstention: str = ''
+    original_video = ''
+    full_background = ''
+    phone_background = ''
+    model_path = '../rvm_resnet50.pth'
+    zoom_scale = 0.2
+    zoom_increment = 1
+    output_video_name = 'output_video'
+    lower_blue = np.array([80, 50, 80])
+    upper_blue = np.array([130, 255, 255])
+    lower_green = np.array([35, 40, 40])
+    upper_green = np.array([85, 255, 255])
+    robust_output_type = 'png'
+    processing_model = 'cpu'
+    output_dir = './results'  # Default directory
+
 
     def __init__(self, args=None):
-        """
-        Initialize parameters with the option to overwrite them using command-line arguments.
 
-        Args:
-            args: The object returned by parse_args(), containing command-line arguments.
-        """
-
-        # TODO: можно сделать return сразу если аргументов нет, в твоем случае возможен запуск без аргументов?
-        # If the args object is passed, overwrite the default values
         if args:
             self.original_video = getattr(args, 'original_video', self.original_video)
+            if not os.path.isfile(self.original_video):
+                raise ValueError(f"Invalid path provided for original_video: {self.original_video}")
+
             self.full_background = getattr(args, 'full_background', self.full_background)
             self.phone_background = getattr(args, 'phone_background', self.phone_background)
             self.model_path = getattr(args, 'model_path', self.model_path)
             self.zoom_scale = getattr(args, 'zoom_scale', self.zoom_scale)
             self.zoom_increment = getattr(args, 'zoom_increment', self.zoom_increment)
             self.output_video_name = getattr(args, 'output_video_name', self.output_video_name)
-
-            # HSV ranges
             self.lower_blue = np.array(getattr(args, 'lower_blue', self.lower_blue))
             self.upper_blue = np.array(getattr(args, 'upper_blue', self.upper_blue))
             self.lower_green = np.array(getattr(args, 'lower_green', self.lower_green))
             self.upper_green = np.array(getattr(args, 'upper_green', self.upper_green))
-
             self.robust_output_type = getattr(args, 'robust_output_type', self.robust_output_type)
-            self.model_type = getattr(args, 'robust_model', self.model_type)
             self.processing_model = getattr(args, 'processing_model', self.processing_model)
+            self.output_dir = getattr(args, 'output_dir', self.output_dir)  # Directory specified by the user
 
-            self.replace_output_video = f'{os.path.splitext(os.path.basename(self.original_video))[0]}_replace_color.mp4'
+        # Extract the filename without extension
+        self.filename_without_extension = os.path.splitext(os.path.basename(self.original_video))[0]
+        self.main_folder_path = os.path.join(self.output_dir, self.filename_without_extension)
 
-            self.filename_without_exstention = os.path.splitext(os.path.split(self.original_video)[-1])[0]
-            # TODO: если в self.original_video будет передан путь типа ./ - все сломается, если передать /home/video.test - все сломается
-            self.output_composition = f'./robust/{self.filename_without_exstention}_output_{self.robust_output_type}'
+        # Paths considering the folder structure
+        self.replace_output_video_folder_path = os.path.join(self.main_folder_path, 'replace')
+        self.replace_output_video_path = os.path.join(self.main_folder_path, 'replace', f'{self.filename_without_extension}_replace_color.mp4')
+        self.output_composition_path = os.path.join(self.main_folder_path, 'robust', f'{self.filename_without_extension}_{self.robust_output_type}')
+        self.temp_dir = os.path.join(self.main_folder_path, 'temp')
+        self.output_video_path = os.path.join(self.main_folder_path, f'{self.output_video_name}.mp4')
+
+        # Directory for intermediate RVM output
+        self.robust_output_dir = os.path.join(self.output_composition_path)
+
+        # Directories for backgrounds
+        self.phone_background_dir = os.path.join(self.temp_dir, 'background_phone_video')
+        self.full_background_dir = os.path.join(self.temp_dir, 'background_video')

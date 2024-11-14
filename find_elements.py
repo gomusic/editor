@@ -29,7 +29,7 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
 
         # Process frame only if the number of frames skipped is less than the current count
         if config.skip_frames <= count_frames:
-            frame = elements_search(frame, templates)
+            frame = elements_search(frame, templates, count_frames)
 
         output_video.write(frame)
 
@@ -51,18 +51,19 @@ def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
     return templates
 
 
-def apply_zoom(frame: np.ndarray, center: Tuple[int, int], zoom_factor: float, width: int, height: int) -> np.ndarray:
-    """Applies zoom to the frame around a specified center."""
-    center_x, center_y = center
-    new_w, new_h = int(width / zoom_factor), int(height / zoom_factor)
+def apply_zoom(frame: np.ndarray, active_template: Template, width: int, height: int) -> np.ndarray:
+    """Applies zoom to the frame around a specified center with boundary checks."""
+    center_x, center_y = active_template.best_match[0]
 
-    # Position the zoom area based on the center
-    new_top_left_x = max(0, center_x - new_w // 2)
-    new_top_left_y = max(0, center_y - new_h // 2)
-    new_bottom_right_x = min(new_top_left_x + new_w, width)
-    new_bottom_right_y = min(new_top_left_y + new_h, height)
+    new_w, new_h = int(width / active_template.zoom_factor), int(height / active_template.zoom_factor)
 
-    # Crop and resize the frame to apply zoom
+    # Ensure the zoom area doesn’t go out of bounds
+    new_top_left_x = max(0, min(center_x - new_w // 2, width - new_w))
+    new_top_left_y = max(0, min(center_y - new_h // 2, height - new_h))
+    new_bottom_right_x = new_top_left_x + new_w
+    new_bottom_right_y = new_top_left_y + new_h
+
+    # Crop and resize the frame for zoom
     roi_zoomed = frame[new_top_left_y:new_bottom_right_y, new_top_left_x:new_bottom_right_x]
     zoomed_frame = cv2.resize(roi_zoomed, (width, height))
 
@@ -84,79 +85,71 @@ def update_zoom(zoom_factor: float, zoom_direction: int, zoom_speed: float, max_
     return zoom_factor, zoom_direction
 
 
-def apply_darkening(frame: np.ndarray, template_gray: np.ndarray, scale: float, top_left: Tuple[int, int], darkness: float) -> np.ndarray:
-    """Applies darkening around the area of the template."""
-    if darkness <= 0:
+def apply_darkening(frame: np.ndarray, active_template: Template) -> np.ndarray:
+    """Applies darkening around the center with a shifted height equal to the radius, using an ideal circular mask."""
+    if active_template.darkness <= 0:
         return frame
 
-    # Create a darkened version of the frame based on the darkness level
-    darkened_frame = cv2.addWeighted(frame, 1 - darkness, np.zeros_like(frame), darkness, 0)
+    # Create a darkened version of the frame
+    darkened_frame = cv2.addWeighted(frame, 1 - active_template.darkness, np.zeros_like(frame), active_template.darkness, 0)
+
+    # Get center coordinates and radius
+    center_x, center_y = active_template.best_match[0]
+    radius = active_template.best_match[1]
+    new_best_match = ((center_x, center_y), int(radius))
+    # Shift the mask center up by the radius
+    if active_template.radius_raising and not active_template.first_initial:
+        shifted_center_y = max(center_y - (radius + 6), 0)  # Ensure it stays within the frame
+        new_best_match = ((center_x, shifted_center_y), int(radius))
+
+    # Create the mask with a circular region at the new height
     mask = np.ones_like(frame, dtype=np.uint8) * 255
+    cv2.circle(mask, new_best_match[0], new_best_match[1], (0, 0, 0), thickness=cv2.FILLED)
 
-    # Find contours and create a darkened area
-    contours, _ = cv2.findContours(template_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for contour in contours:
-        scaled_contour = contour * scale
-        scaled_contour += np.array(top_left)
-        cv2.drawContours(mask, [scaled_contour.astype(int)], -1, (0, 0, 0), thickness=cv2.FILLED)
-
-    # Apply the mask to combine the original frame and the darkened frame
+    # Apply the mask to darken the area around the specified center
     frame = np.where(mask == 0, frame, darkened_frame)
+    active_template.first_initial = False
     return frame
 
 
-def update_darkness(darkness: float, zoom_direction: int, darkening_step: float) -> float:
+def update_darkness(darkness: float) -> float:
     """Updates the level of darkness based on the zoom direction."""
-    darkness += zoom_direction * darkening_step
+    darkness += config.darkening_speed
     darkness = min(max(darkness, 0.0), 0.8)  # Clamp darkness between 0 and 0.8
     return darkness
 
 
-def process_template(templates: List[Template], frame: np.ndarray, width: int, height: int, zoom_speed: float, max_zoom_factor: float):
+def process_template(templates: List[Template], frame: np.ndarray):
     """Selects the current active template, updates its state, and returns data for processing."""
-    # global best_match, best_val
     # Identify the first unfinished template
     active_template = next((template for template in templates if not template.completed), None)
 
     # If all templates are finished, return None
     if active_template is None:
-        return None, None, None
+        return None
 
     # Search for a match for the active template in the current frame
     find_best_match_full(frame, active_template)
-
-    template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
-    w, h = template_gray.shape[::-1]
 
     print('best match', active_template.best_match)
     print('best val', active_template.best_val)
 
     # If a match is found, update its state
     if active_template.best_match and active_template.best_val >= active_template.threshold:
-        print(active_template.threshold)
-        print(active_template.best_val)
-        print(active_template.best_match)
         print('Great!')
-        top_left = active_template.best_match[0]
-        scale = active_template.best_match[1]
-        w_scaled, h_scaled = int(w * scale), int(h * scale)
-        center = (top_left[0] + w_scaled // 2, top_left[1] + h_scaled // 2)
 
         # Update zoom and darkness based on current state
         active_template.zoom_factor, active_template.zoom_direction = update_zoom(
-            active_template.zoom_factor, active_template.zoom_direction, zoom_speed, max_zoom_factor
+            active_template.zoom_factor, active_template.zoom_direction, config.zoom_speed, config.max_zoom_factor
         )
-        darkening_step = 0.8 / ((max_zoom_factor - 1) / zoom_speed)
-        active_template.darkness = update_darkness(active_template.darkness, active_template.zoom_direction, darkening_step)
+        active_template.darkness = update_darkness(active_template.darkness)
 
         # Check if the template processing is complete
         if active_template.zoom_factor == 1.0 and active_template.zoom_direction == 1:
             active_template.completed = True  # Mark as completed if zoom is reset
 
         # Return relevant data for processing
-        return active_template, (top_left, scale, center, active_template.darkness), active_template
-    else:
-        return active_template, None, active_template
+        return active_template
 
 
 def frame_to_base64(frame):
@@ -164,25 +157,26 @@ def frame_to_base64(frame):
     return base64.b64encode(buffer).decode('utf-8')
 
 
-def elements_search(frame: np.ndarray, templates: List[Template]) -> np.ndarray:
+def elements_search(frame: np.ndarray, templates: List[Template], count: int) -> np.ndarray:
     """Main function for searching elements in the current frame using defined templates."""
     height, width, _ = frame.shape
     frame = cv2.fastNlMeansDenoisingColored(frame)
 
     # Get active template and processing data
-    active_template, processing_data, state = process_template(
-        templates, frame, width, height, config.zoom_speed, config.max_zoom_factor
-    )
+    active_template = process_template(templates, frame)
 
     # If all templates are processed, return the original frame
-    if active_template is None or processing_data is None:
+    if not isinstance(active_template, Template) or active_template.best_match is None:
         return frame
 
+    if active_template and active_template.background_hex_color:
+        print('Copy Link detaction, frame: ', count)
+    elif active_template:
+        print('Template detaction, frame: ', count)
+
     # Process the frame with the current template
-    top_left, scale, center, darkness = processing_data
-    template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
-    frame = apply_darkening(frame, template_gray, scale, top_left, darkness)  # Apply darkening effect
-    frame = apply_zoom(frame, center, active_template.zoom_factor, width, height)  # Apply zoom effect
+    frame = apply_darkening(frame, active_template)  # Apply darkening effect
+    frame = apply_zoom(frame, active_template, width, height)  # Apply zoom effect
 
     return frame
 
@@ -284,6 +278,11 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
         mask = get_hsv_mask(frame, lower, upper)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # Определяем порог для больших контуров
+        contour_areas = [cv2.contourArea(contour) for contour in contours]
+        max_area = max(contour_areas) if contour_areas else 0
+        area_threshold = max_area * config.contours_threshold  # Берём контуры, которые занимают 70% от самой большой площади
+
     template_gray = cv2.cvtColor(cv2.imread(active_template.template_path), cv2.COLOR_BGR2GRAY)
     template_gray = cv2.fastNlMeansDenoising(template_gray)
     w, h = template_gray.shape[::-1]
@@ -300,22 +299,23 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
             0.05
         )
 
-    best_match = None
     best_score = 0
 
     for scale in scales:
         resized_template = cv2.resize(template_gray, (int(w * scale), int(h * scale)))
-        if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[1]:
-            continue
 
         if active_template.background_hex_color:
-            for contour in contours:
+            for contour, area in zip(contours, contour_areas):
+                if area < area_threshold:
+                    continue
+                (x, y), radius = cv2.minEnclosingCircle(contour)
+                center = (int(x), int(y))
+                radius = int(radius)
+                # Вычисляем область интереса (ROI) для текущего контура
                 x, y, w_contour, h_contour = cv2.boundingRect(contour)
                 roi = image_gray[y:y + h_contour, x:x + w_contour]
 
-                if roi.shape[0] < resized_template.shape[0] or roi.shape[1] < resized_template.shape[1]:
-                    continue
-
+                # Сопоставляем шаблон с ROI
                 result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)
                 _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
@@ -323,27 +323,27 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
                     active_template.best_val = max_val
                     active_template.best_match = ((x + max_loc[0], y + max_loc[1]), scale)
 
+                    # Создаём двоичную маску для шаблона
                     _, binary_mask = cv2.threshold(resized_template, 1, 255, cv2.THRESH_BINARY)
-
                     resized_binary_mask = cv2.resize(binary_mask, (roi.shape[1], roi.shape[0]),
                                                      interpolation=cv2.INTER_NEAREST)
 
+                    # Проверяем совпадение масок
                     roi_mask = mask[y:y + h_contour, x:x + w_contour]
                     match_score = np.sum(cv2.bitwise_and(roi_mask, resized_binary_mask) == 255)
 
+                    # Обновляем наилучший результат, если счёт совпадений больше текущего
                     if match_score > best_score:
                         best_score = match_score
-                        best_match = ((x + max_loc[0], y + max_loc[1]), scale)
+                        active_template.best_match = (center, radius)
+
         else:
             result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
             if max_val > active_template.best_val:
                 active_template.best_val = max_val
-                active_template.best_match = (max_loc, scale)
-
-    if best_match:
-        active_template.best_match = best_match
+                get_center_radius(w, h, active_template, scale, max_loc)
 
 
 def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_color: np.ndarray) -> bool:
@@ -354,6 +354,16 @@ def is_color_within_tolerance(avg_color: Tuple[float, float, float], target_colo
         if not (lower_bound <= avg <= upper_bound):
             return False  # Return false if any channel is out of bounds
     return True  # Return true if all channels are within bounds
+
+
+def get_center_radius(w: int, h: int, active_template: Template, scale: float, top_left: Tuple[int, int]) -> np.ndarray:
+    w_scaled, h_scaled = int(w * scale), int(h * scale)
+    center_x = top_left[0] + w_scaled // 2
+    center_y = top_left[1] + h_scaled // 2
+    center = (center_x, center_y)
+    # Радиус как увеличенная диагональ элемента (например, на 20% больше)
+    radius = int(0.5 * ((w_scaled ** 2 + h_scaled ** 2) ** 0.5) * 1.2)
+    active_template.best_match = (center, radius)
 
 
 def is_mostly_white(frame, sensitivity=90, threshold=0.8):
@@ -541,7 +551,7 @@ def debug_image(image = None, image_path = None):
 if __name__ == ('__main__'):
     # lower, upper, lower2, upper2 = hex_to_hsv_range('#ffffff', hue_tol=0, sat_tol=0, val_tol=30)
     # lower, upper, l2, u2 = hex_to_hsv_range('#2764FB')
-    # image = cv2.imread("new_tests/img_4.png")
+    # image = cv2.imread("image_test_for_link.jpg")
     # image = get_hsv_mask(image, lower, upper)
     # cv2.imwrite('res2.jpg', image)
     # hsv_lower = np.array([24, 200, 255])
@@ -550,7 +560,9 @@ if __name__ == ('__main__'):
     # exit(0)
     #get_frame_for_color('temp/back_tiktok_temp.mp4')
     data = [
-        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.8},
-        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 15, 'max': 20}, 'threshold': 0.6, 'background_hex_color': '#2764FB'}
+        # {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
+        # {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0, 'background_hex_color': '#2764FB', 'radius_raising': True}
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0,
+         'background_hex_color': '#2764FB'}
     ]
-    get_video(f'temp/phone_tiktok_temp.mp4', f'back_test_1.mp4', data)
+    get_video(f'output_with_elemets_test.mp4', f'back_test_1.mp4', data)
