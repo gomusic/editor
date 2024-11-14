@@ -84,7 +84,7 @@ def main():
         print(f'Founded removed background video {editor_config.output_composition_path}, skipped...')
 
     print('3. CHROMA KEY REPLACING')
-    chroma_replace(editor_config)
+    # chroma_replace(editor_config)
 
     data = [
         {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
