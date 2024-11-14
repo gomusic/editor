@@ -70,19 +70,17 @@ def apply_zoom(frame: np.ndarray, active_template: Template, width: int, height:
     return zoomed_frame
 
 
-def update_zoom(zoom_factor: float, zoom_direction: int, zoom_speed: float, max_zoom_factor: float) -> Tuple[float, int]:
+def update_zoom(template: Template) -> Tuple[float, int]:
     """Updates the zoom factor and its direction."""
-    zoom_factor += zoom_direction * zoom_speed
+    template.zoom_factor += template.zoom_direction * config.zoom_speed
 
     # Check for zoom limits
-    if zoom_factor >= max_zoom_factor:
-        zoom_factor = max_zoom_factor
-        zoom_direction = -1
-    elif zoom_factor <= 1.0:
-        zoom_factor = 1.0
-        zoom_direction = 1
-
-    return zoom_factor, zoom_direction
+    if template.zoom_factor >= config.max_zoom_factor:
+        template.zoom_factor = config.max_zoom_factor
+        template.zoom_direction = -1
+    elif template.zoom_factor <= 1.0:
+        template.zoom_factor = 1.0
+        template.zoom_direction = 1
 
 
 def apply_darkening(frame: np.ndarray, active_template: Template) -> np.ndarray:
@@ -112,11 +110,19 @@ def apply_darkening(frame: np.ndarray, active_template: Template) -> np.ndarray:
     return frame
 
 
-def update_darkness(darkness: float) -> float:
+def update_darkness(template: Template) -> float:
     """Updates the level of darkness based on the zoom direction."""
-    darkness += config.darkening_speed
-    darkness = min(max(darkness, 0.0), 0.8)  # Clamp darkness between 0 and 0.8
-    return darkness
+    template.darkness += config.darkening_speed
+    template.darkness = min(max(template.darkness, 0.0), 0.8)  # Clamp darkness between 0 and 0.8
+
+
+def update_darkness_euler(template: Template, config: ElementsConfig) -> None:
+    """Применяет метод Эйлера для обновления уровня затемнения в зависимости от направления зума."""
+    # Применяем метод Эйлера для обновления уровня затемнения
+    template.darkness += template.zoom_direction * config.darkening_speed * template.darkness
+
+    # Ограничиваем уровень затемнения
+    template.darkness = min(max(template.darkness, 0.0), 0.8)
 
 
 def process_template(templates: List[Template], frame: np.ndarray):
@@ -139,10 +145,8 @@ def process_template(templates: List[Template], frame: np.ndarray):
         print('Great!')
 
         # Update zoom and darkness based on current state
-        active_template.zoom_factor, active_template.zoom_direction = update_zoom(
-            active_template.zoom_factor, active_template.zoom_direction, config.zoom_speed, config.max_zoom_factor
-        )
-        active_template.darkness = update_darkness(active_template.darkness)
+        update_zoom(active_template)
+        update_darkness(active_template)
 
         # Check if the template processing is complete
         if active_template.zoom_factor == 1.0 and active_template.zoom_direction == 1:
@@ -308,9 +312,16 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
             for contour, area in zip(contours, contour_areas):
                 if area < area_threshold:
                     continue
+
+                # Проверка радиуса для минимального размера
                 (x, y), radius = cv2.minEnclosingCircle(contour)
+                diameter = 2 * radius
+                if diameter < active_template.resize['min']:
+                    continue  # Пропускаем контуры, у которых диаметр меньше минимального значения
+
                 center = (int(x), int(y))
                 radius = int(radius)
+
                 # Вычисляем область интереса (ROI) для текущего контура
                 x, y, w_contour, h_contour = cv2.boundingRect(contour)
                 roi = image_gray[y:y + h_contour, x:x + w_contour]
