@@ -11,7 +11,8 @@ best_match = 0
 best_val = 0
 config = ElementsConfig()
 
-def get_video(input_video_path: str, output_video_path: str, templates_list: List[Dict[str, Any]]):
+def get_video(input_video_path: str, output_video_path: str, templates_list: List[Dict[str, Any]], fps):
+    config.fps = fps
     iterator = VIter(input_video_path)
 
     # Initialize templates as instances of Template class
@@ -28,7 +29,7 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
         print('Frame: ', count_frames)
 
         # Process frame only if the number of frames skipped is less than the current count
-        if config.skip_frames <= count_frames:
+        if config.skip_frames <= count_frames and not config.start_skipping:
             frame = elements_search(frame, templates, count_frames)
 
         output_video.write(frame)
@@ -102,7 +103,7 @@ def apply_darkening(frame: np.ndarray, active_template: Template) -> np.ndarray:
 
     # Create the mask with a circular region at the new height
     mask = np.ones_like(frame, dtype=np.uint8) * 255
-    cv2.circle(mask, new_best_match[0], new_best_match[1] + 10, (0, 0, 0), thickness=cv2.FILLED)
+    cv2.circle(mask, new_best_match[0], new_best_match[1] + config.radius_increase, (0, 0, 0), thickness=cv2.FILLED)
 
     # Apply the mask to darken the area around the specified center
     frame = np.where(mask == 0, frame, darkened_frame)
@@ -132,6 +133,11 @@ def process_template(templates: List[Template], frame: np.ndarray):
 
     # If all templates are finished, return None
     if active_template is None:
+        config.start_skipping = True
+        return None
+
+    if active_template.template_skip_frames:
+        active_template.template_skip_frames -= 1
         return None
 
     # Search for a match for the active template in the current frame
@@ -589,6 +595,6 @@ if __name__ == ('__main__'):
         # {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
         # {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0, 'background_hex_color': '#2764FB', 'radius_raising': True}
         {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0,
-         'background_hex_color': '#2764FB'}
+         'background_hex_color': '#2764FB', 'template_skip_frames': 5}
     ]
-    get_video(f'output_video.mp4', f'back_test_1.mp4', data)
+    get_video(f'output_video.mp4', f'back_test_1.mp4', data, 25)
