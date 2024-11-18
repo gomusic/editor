@@ -21,6 +21,7 @@ class EditorConfig:
         robust_output_type (str): RVM output type (png for image sequence or video for full video).
         processing_model (str): Processing type for RVM (cpu or gpu).
         output_dir (str): Main directory for saving results.
+        start_phone_video (bool): Whether to start the clip immediately after the phone screen appears in the frame.
     """
 
     original_video = ''
@@ -37,6 +38,7 @@ class EditorConfig:
     robust_output_type = 'png'
     processing_model = 'cpu'
     output_dir = './results'  # Default directory
+    start_phone_video = False
 
 
     def __init__(self, args=None):
@@ -59,6 +61,7 @@ class EditorConfig:
             self.robust_output_type = getattr(args, 'robust_output_type', self.robust_output_type)
             self.processing_model = getattr(args, 'processing_model', self.processing_model)
             self.output_dir = getattr(args, 'output_dir', self.output_dir)  # Directory specified by the user
+            self.start_phone_video = getattr(args, 'start_phone_video', self.start_phone_video)
 
         # Extract the filename without extension
         self.filename_without_extension = os.path.splitext(os.path.basename(self.original_video))[0]

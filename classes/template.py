@@ -2,7 +2,7 @@ from typing import Dict
 import numpy as np
 
 class Template:
-    def __init__(self, template_path: str, resize: Dict[str, int], threshold: float = 0.8, background_hex_color: str = '',  background_color_hsv_range: Dict[str, np.ndarray] = None, form_factor: str = '', form_size: int = 10, radius_raising: bool = False):
+    def __init__(self, template_path: str, resize: Dict[str, int], threshold: float = 0.8, background_hex_color: str = '',  background_color_hsv_range: Dict[str, np.ndarray] = None, form_factor: str = '', form_size: int = 10, radius_raising: bool = False, template_skip_frames: int = 0):
         self.template_path = template_path
         self.resize = resize
         self.threshold = threshold
@@ -11,6 +11,7 @@ class Template:
         self.form_factor = form_factor
         self.form_size = form_size
         self.radius_raising = radius_raising
+        self.template_skip_frames = template_skip_frames
 
         # Инициализация закрытых атрибутов состояния
         self._zoom_factor = 1.0

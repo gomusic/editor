@@ -27,6 +27,7 @@ def parse_arguments():
     parser.add_argument('--robust_model', type=str, default='resnet50', help="Robust model. resnet50 or mobilenetv3")
     parser.add_argument('--processing_model', type=str, default='cpu', help='Processing model: cpu or gpu')
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory to save results')
+    parser.add_argument('--start_phone_video', action='store_true', help="Start the clip immediately after the phone screen appears in the frame. Default: false.")
 
     return parser.parse_args()
 
@@ -84,14 +85,14 @@ def main():
         print(f'Founded removed background video {editor_config.output_composition_path}, skipped...')
 
     print('3. CHROMA KEY REPLACING')
-    chroma_replace(editor_config)
+    fps = chroma_replace(editor_config)
 
     data = [
         {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
         {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0, 'background_hex_color': '#2764FB'}
     ]
     output_path = os.path.join(editor_config.main_folder_path, editor_config.output_video_name)
-    get_video(f'{output_path}.mp4', f'{output_path}_with_elements.mp4', data)
+    get_video(f'{output_path}.mp4', f'{output_path}_with_elements.mp4', data, fps)
 
 if __name__ == "__main__":
     main()

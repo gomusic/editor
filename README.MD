@@ -44,25 +44,30 @@ Recommendation: **PyTorch:** 2.4.1, **CUDA:** 11.8.
 
 ## Usage
 
-### To run the script, use the following command format:
+### To run the script, use the following minimal command format:
 
 ```bash
+python pipeline.py --original_video <path_to_original_video> \
+                   --full_background <path_to_full_background_video> \
+                   --phone_background <path_to_phone_background_video> \
+                   --model_path <path_to_model> 
+```
+If you use the mobilenetv3 model, don't forget to specify the robust_model parameter
 
+```bash
 python pipeline.py --original_video <path_to_original_video> \
                    --full_background <path_to_full_background_video> \
                    --phone_background <path_to_phone_background_video> \
                    --model_path <path_to_model> \
-                   --zoom_scale <initial_zoom_scale> \
-                   --zoom_increment <zoom_increment> \
-                   --lower_green 35 40 40 \
-                   --upper_green 85 255 255 
+                   --robust_model <model_type>
 ```
+
 ## Arguments
 ```text
     --original_video: (Required) Path to the original video file that you want to process.
     --full_background: (Required) Path to the full background video that will replace the chroma-keyed regions of the original video.
     --phone_background: (Required) Path to the phone background video that will replace the chroma-keyed regions.
-    --model_path: (Optional) Path to the Robust Video Matting model file. Default: rvm_resnet50.pth.
+    --model_path: (Required) Path to the Robust Video Matting model file.
     --zoom_scale: (Optional) Initial zoom scale for the chroma key effect. Default: 0.2.
     --zoom_increment: (Optional) Zoom increment applied per frame for the dynamic zoom effect. Default: 1.
     --output_video_name: (Optional) Name of the output video file (without extension). Default: output_video.
@@ -71,11 +76,12 @@ python pipeline.py --original_video <path_to_original_video> \
     --lower_green: (Optional) Lower HSV range for green color used in chroma key processing, provided as three integers. Default: [35, 40, 40].
     --upper_green: (Optional) Upper HSV range for green color used in chroma key processing, provided as three integers. Default: [85, 255, 255].
     --robust_output_type: (Optional) Output type for the Robust Video Matting process (e.g., 'png' for image sequence, 'video' for full video). Default: png.
-    --robust_model: (Optional) The type of Robust Video Matting model to use. Choices: resnet50 or mobilenetv3. Default: resnet50.
+    --robust_model: (Required if the mobilenetv3 model is used) The type of Robust Video Matting model to use. Choices: resnet50 or mobilenetv3. Default: resnet50.
     --replace_output_video: (Optional) Path to the video output after color replacement is applied.
     --output_composition: (Optional) Path to the AI-processed final video composition.
     --processing_model: (Optional) Model for file processing. Options: 'cpu' or 'gpu' (cuda). Default: cpu.
     --output_dir: (Optional) A custom path to save the results. (Default in the project directory is the results folder).
+    --start_phone_video (Optional): Whether to start the phone's background movie immediately after the screen appears in the frame. Default: false
 ```
     
 ### Description of Chroma Keying and Zoom Parameters:
@@ -89,7 +95,6 @@ python pipeline.py --original_video <path_to_original_video> \
 ### To process a video called input.mp4, apply a background from full_bg.mp4:
 
 ```bash
-
 python pipeline.py --original_video input.mp4 \
                    --full_background full_bg.mp4 \
                    --phone_background phone_bg.mp4 \
