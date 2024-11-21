@@ -53,38 +53,6 @@ def get_templates(templates_list: List[Dict[str, Any]]) -> List[Template]:
     return templates
 
 
-# def apply_zoom(frame: np.ndarray, active_template: Template, width: int, height: int) -> np.ndarray:
-#     """Applies zoom to the frame around a specified center with boundary checks."""
-#     center_x, center_y = active_template.best_match[0]
-#
-#     new_w, new_h = int(width / active_template.zoom_factor), int(height / active_template.zoom_factor)
-#
-#     # Ensure the zoom area doesn’t go out of bounds
-#     new_top_left_x = max(0, min(center_x - new_w // 2, width - new_w))
-#     new_top_left_y = max(0, min(center_y - new_h // 2, height - new_h))
-#     new_bottom_right_x = new_top_left_x + new_w
-#     new_bottom_right_y = new_top_left_y + new_h
-#
-#     # Crop and resize the frame for zoom
-#     roi_zoomed = frame[new_top_left_y:new_bottom_right_y, new_top_left_x:new_bottom_right_x]
-#     zoomed_frame = cv2.resize(roi_zoomed, (width, height))
-#
-#     return zoomed_frame
-#
-#
-# def update_zoom(template: Template) -> Tuple[float, int]:
-#     """Updates the zoom factor and its direction."""
-#     template.zoom_factor += template.zoom_direction * config.zoom_speed
-#
-#     # Check for zoom limits
-#     if template.zoom_factor >= config.max_zoom_factor:
-#         template.zoom_factor = config.max_zoom_factor
-#         template.zoom_direction = -1
-#     elif template.zoom_factor <= 1.0:
-#         template.zoom_factor = 1.0
-#         template.zoom_direction = 1
-
-
 def apply_zoom(frame: np.ndarray, active_template: Template, width: int, height: int) -> np.ndarray:
     """Applies smooth zoom to the frame around a specified center."""
     center_x, center_y = active_template.best_match[0]
@@ -594,39 +562,39 @@ def hex_to_hsv(hex_color):
 
 
 def debug_image(image = None, image_path = None):
-    # threshold = 0.5
-    # # Загрузим изображение по пути
+    threshold = 0.5
+    # Загрузим изображение по пути
     if image_path:
         image = cv2.imread(image_path)
-    #     image = cv2.fastNlMeansDenoisingColored(image)  # Reducing image noise
-    #
-    # if image is None:
-    #     print("Ошибка: Не удалось загрузить изображение.")
-    #     return
-    #
-    # img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # template = cv2.imread('./src/link/tiktok_link.png')
-    #
-    # if template is None:
-    #     print("Ошибка: Не удалось загрузить шаблонное изображение.")
-    #     return
-    #
-    # template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-    # h, w, channels = image.shape
-    # # img_gray = cv2.fastNlMeansDenoising(img_gray)
-    # # template_gray = cv2.fastNlMeansDenoising(template_gray)
-    # res = cv2.matchTemplate(img_gray, template_gray, cv2.TM_CCOEFF_NORMED)
-    #
-    # loc = np.where(res >= threshold)
-    # th, tw = template_gray.shape[:2]
-    #
-    # for pt in zip(*loc[::-1]):  # Поменяем x и y координаты
-    #     top_left = pt
-    #     bottom_right = (top_left[0] + tw, top_left[1] + th)
-    #     cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)
-    #
-    # cv2.imwrite('res.jpg', image)
-    # return
+        image = cv2.fastNlMeansDenoisingColored(image)  # Reducing image noise
+
+    if image is None:
+        print("Ошибка: Не удалось загрузить изображение.")
+        return
+
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    template = cv2.imread('./src/link/tiktok_link.png')
+
+    if template is None:
+        print("Ошибка: Не удалось загрузить шаблонное изображение.")
+        return
+
+    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    h, w, channels = image.shape
+    # img_gray = cv2.fastNlMeansDenoising(img_gray)
+    # template_gray = cv2.fastNlMeansDenoising(template_gray)
+    res = cv2.matchTemplate(img_gray, template_gray, cv2.TM_CCOEFF_NORMED)
+
+    loc = np.where(res >= threshold)
+    th, tw = template_gray.shape[:2]
+
+    for pt in zip(*loc[::-1]):  # Поменяем x и y координаты
+        top_left = pt
+        bottom_right = (top_left[0] + tw, top_left[1] + th)
+        cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)
+
+    cv2.imwrite('res.jpg', image)
+    return
 
     frame = elements_search(
         image,
@@ -636,19 +604,8 @@ def debug_image(image = None, image_path = None):
     cv2.imwrite('res2.jpg', frame)
 
 if __name__ == ('__main__'):
-    # lower, upper, lower2, upper2 = hex_to_hsv_range('#ffffff', hue_tol=0, sat_tol=0, val_tol=30)
-    # lower, upper, l2, u2 = hex_to_hsv_range('#2764FB')
-    # image = cv2.imread("image_test_for_link.jpg")
-    # image = get_hsv_mask(image, lower, upper)
-    # cv2.imwrite('res2.jpg', image)
-    # hsv_lower = np.array([24, 200, 255])
-    # display_hsv_highlight("new_tests/img_4.png", lower, upper)
-    # debug_image(image_path="new_tests/tik_img_test.jpg")
-    # exit(0)
-    #get_frame_for_color('temp/back_tiktok_temp.mp4')
     data = [
         {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
-        # {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0, 'background_hex_color': '#2764FB', 'radius_raising': True}
         {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0,
          'background_hex_color': '#2764FB', 'template_skip_frames': 5}
     ]
