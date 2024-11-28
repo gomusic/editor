@@ -9,11 +9,11 @@ class ElementsConfig:
     max_zoom_factor = 5
 
     def __init__(self, fps=25):
-        self.skip_frames = 196 # 33-42
-        self.zoom_duration = 2 # Zoom time in seconds
+        self.skip_frames = 175 # 33-42
+        self.zoom_duration = 0.5 # Zoom time in seconds
         self._fps = fps
         self.zoom_speed = self.max_zoom_factor / (self.zoom_duration * self._fps)
-        self.darkening_speed = 0.3
+        self.darkening_speed = 0.1
         self.contours_threshold = 1
         self.radius_increase = 10 # The value of how much the radius will be larger than the element
 
