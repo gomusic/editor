@@ -50,6 +50,9 @@ class EditorConfig:
 
             self.full_background = getattr(args, 'full_background', self.full_background)
             self.phone_background = getattr(args, 'phone_background', self.phone_background)
+
+            if self.full_background and not self.phone_background:
+                self.phone_background = self.full_background
             self.model_path = getattr(args, 'model_path', self.model_path)
             self.zoom_scale = getattr(args, 'zoom_scale', self.zoom_scale)
             self.zoom_increment = getattr(args, 'zoom_increment', self.zoom_increment)
