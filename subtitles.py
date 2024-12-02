@@ -222,3 +222,10 @@ def add_multiple_audio(input_video, voice_files, main_audio, subtitles_data):
 
     # Execute the command
     subprocess.run(command)
+
+if __name__ == ('__main__'):
+    subtitles_data = [
+        {"start_second": 1, "subtitle_text": "Первый субтитр"},
+        {"start_second": 5, "subtitle_text": "Второй субтитр"},
+    ]
+    add_audio_and_subtitles(input_video_path='../../headphones.mp4', output_video_path='D:/test_video', main_audio_path='main_music.mp3', subtitles_data=subtitles_data)
