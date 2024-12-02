@@ -12,6 +12,8 @@ best_match = 0
 best_val = 0
 config = ElementsConfig()
 
+share_start_second, link_start_second = 0, 0
+
 def get_video(input_video_path: str, output_video_path: str, templates_list: List[Dict[str, Any]], fps):
     config.fps = fps
     iterator = VIter(input_video_path)
@@ -36,6 +38,8 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
         output_video.write(frame)
 
     output_video.release()
+
+    return share_start_second, link_start_second
 
 
 def get_frame_for_color(input_video_path: str):
@@ -124,12 +128,21 @@ def apply_darkening(frame: np.ndarray, active_template: Template) -> np.ndarray:
 
     # Create the mask with a circular region at the new height
     mask = np.ones_like(frame, dtype=np.uint8) * 255
+
     cv2.circle(mask, new_best_match[0], new_best_match[1] + config.radius_increase, (0, 0, 0), thickness=cv2.FILLED)
+
+    # cv2.circle(mask, new_best_match[0], new_best_match[1] + config.radius_increase, bgr_to_grayscale_value(config.radius_border_color), thickness=10)
 
     # Apply the mask to darken the area around the specified center
     frame = np.where(mask == 0, frame, darkened_frame)
     active_template.first_initial = False
     return frame
+
+
+def bgr_to_grayscale_value(bgr_color):
+    """Converts a color from BGR format to a single integer value from 0 to 255."""
+    b, g, r = bgr_color # Unpack the BGR color into its components
+    return (b + g + r) // 3  # Return the average value of the BGR components
 
 
 def update_darkness(template: Template):
@@ -192,6 +205,9 @@ def frame_to_base64(frame):
 
 def elements_search(frame: np.ndarray, templates: List[Template], count: int) -> np.ndarray:
     """Main function for searching elements in the current frame using defined templates."""
+    global share_start_second
+    global link_start_second
+
     height, width, _ = frame.shape
     frame = cv2.fastNlMeansDenoisingColored(frame)
 
@@ -203,8 +219,12 @@ def elements_search(frame: np.ndarray, templates: List[Template], count: int) ->
         return frame
 
     if active_template and active_template.background_hex_color:
+        if not link_start_second:
+            link_start_second = count / config.fps
         print('Copy Link detaction, frame: ', count)
     elif active_template:
+        if not share_start_second:
+            share_start_second = count / config.fps
         print('Template detaction, frame: ', count)
 
     # Process the frame with the current template
@@ -609,4 +629,4 @@ if __name__ == ('__main__'):
         {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0,
          'background_hex_color': '#2764FB', 'template_skip_frames': 5}
     ]
-    get_video(f'results/headphones/output_video.mp4', f'results/headphones/back_test_1.mp4', data, 25)
+    get_video(f'results/headphones/output_video.mp4', f'results/headphones/back_test_2.mp4', data, 25)

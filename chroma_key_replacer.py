@@ -21,6 +21,7 @@ detected_for_required_period = False
 start_zooming = False
 global_zoom_scale = 0.2
 
+current_frame, phone_start_second, back_video_start_second = 0, 0, 0
 # Function to apply saturation increase
 def increase_saturation(frame):
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -115,6 +116,8 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
     global detected_for_required_period
     global start_zooming
     global global_editor_config
+    global phone_start_second
+    global current_frame
 
     w = frame_width
     h = frame_height
@@ -175,6 +178,8 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
     if not start_zooming and consecutive_frame_count >= required_frames_for_one_second:
         detected_for_required_period = True
         start_zooming = True
+        if not phone_start_second:
+            phone_start_second = current_frame / required_frames_for_one_second
         print("Background detected for more than one second.")
 
     return main_background
@@ -341,6 +346,9 @@ def create_resized_video(fps, target_width, target_height, duration=None, target
 # Main chroma replace function
 def chroma_replace(editor_config):
     global global_editor_config
+    global current_frame
+    global phone_start_second
+    global back_video_start_second
     global_editor_config = editor_config
     video = cv2.VideoCapture(global_editor_config.original_video)
 
@@ -418,7 +426,10 @@ def chroma_replace(editor_config):
 
         output_video.write(processed_frame)
 
+        current_frame += 1
+
     while background_phone_video.isOpened():
+        back_video_start_second = current_frame / fps
         ret_bg, background_phone_frame = background_phone_video.read()
         if not ret_bg:
             break
@@ -429,4 +440,4 @@ def chroma_replace(editor_config):
     output_video.release()
     background_phone_video.release()
     cv2.destroyAllWindows()
-    return fps
+    return fps, phone_start_second, back_video_start_second

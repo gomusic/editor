@@ -15,7 +15,8 @@ class ElementsConfig:
         self.zoom_speed = self.max_zoom_factor / (self.zoom_duration * self._fps)
         self.darkening_speed = 0.1
         self.contours_threshold = 1
-        self.radius_increase = 10 # The value of how much the radius will be larger than the element
+        self.radius_increase = 20 # The value of how much the radius will be larger than the element
+        self.radius_border_color = (140, 255, 140)
 
         self._start_skipping = False
 

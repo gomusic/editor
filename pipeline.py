@@ -5,9 +5,9 @@ from RobustVideoMatting.inference import convert_video
 from RobustVideoMatting.model import MattingNetwork
 from replace_color import replace
 from chroma_key_replacer import chroma_replace
-import numpy as np
 from configs.editor_config import EditorConfig
 from find_elements import get_video
+from subtitles import add_audio_and_subtitles
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Video Processing with Matting and Chroma Key Replacement")
@@ -85,14 +85,16 @@ def main():
         print(f'Founded removed background video {editor_config.output_composition_path}, skipped...')
 
     print('3. CHROMA KEY REPLACING')
-    fps = chroma_replace(editor_config)
+    fps, phone_start_second, back_video_start_second = chroma_replace(editor_config)
 
     data = [
         {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
         {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0, 'background_hex_color': '#2764FB'}
     ]
     output_path = os.path.join(editor_config.main_folder_path, editor_config.output_video_name)
-    get_video(f'{output_path}.mp4', f'{output_path}_with_elements.mp4', data, fps)
+    share_start_second, link_start_second = get_video(f'{output_path}.mp4', f'{output_path}_with_elements.mp4', data, fps)
+
+    print('\nThe second the phone appears: ', phone_start_second, '\nOne second of the beginning of the clip: ', back_video_start_second, '\nA second of the emergence of the share template:', share_start_second, '\nThe second the link appears:', link_start_second)
 
 if __name__ == "__main__":
     main()
