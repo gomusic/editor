@@ -8,6 +8,7 @@ from chroma_key_replacer import chroma_replace
 from configs.editor_config import EditorConfig
 from find_elements import get_video
 from subtitles import add_audio_and_subtitles
+from speed_up import speed_up
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Video Processing with Matting and Chroma Key Replacement")
@@ -38,7 +39,6 @@ def main():
     args = parse_arguments()
     editor_config = EditorConfig(args)
 
-    # Проверка наличия replace файла
     if not os.path.exists(editor_config.replace_output_video_folder_path):
         print('1. Replace colors in file')
         os.makedirs(editor_config.replace_output_video_folder_path)
@@ -97,6 +97,37 @@ def main():
     share_start_second, link_start_second = get_video(f'{output_path}.mp4', f'{output_path}_with_elements.mp4', data, fps)
 
     print('\nThe second the phone appears: ', phone_start_second, '\nOne second of the beginning of the clip: ', back_video_start_second, '\nA second of the emergence of the share template:', share_start_second, '\nThe second the link appears:', link_start_second)
+
+    subtitles_data = [
+        {"start_second": 3, "subtitle_text": "Listen to this track on your favorite platform in just two clicks!"},
+    ]
+
+    with_elements_video = f'{output_path}_with_elements.mp4'
+    subtitles_video = f'{output_path}.mp4'
+    speed_up_video = f'{output_path}_speed_up.mp4'
+
+    print('4. ADDING AUDIO AND SUBTITLES')
+    add_audio_and_subtitles(
+        input_video_path=with_elements_video,
+        output_video_path=subtitles_video,
+        main_audio_path='C:/good_var/music/lil_wayne_crop.mp3',
+        subtitles_data=subtitles_data,
+        language='en',
+        clean_temp=True
+    )
+
+    print('5. SPEEDING UP THE VIDEO')
+    speed_up(
+        output_video=speed_up_video,
+        input_video=subtitles_video,
+        start_time=15,
+        speed_factor=3.2,
+        audio_speed=False,
+        end_image='./_lab/audio_for_videos/end2.png',
+        end_time=3,
+        end_animated=True,
+        end_animated_time=2
+    )
 
 if __name__ == "__main__":
     main()

@@ -9,7 +9,7 @@ import re
 import os
 
 
-def add_audio_and_subtitles(input_video_path, output_video_path, main_audio_path, subtitles_data, clean_temp=False):
+def add_audio_and_subtitles(input_video_path, output_video_path, main_audio_path, subtitles_data, clean_temp=False, language='ru', skeaker=''):
     """
     Adds voiceover and synchronized subtitles for each object in subtitles_data.
 
@@ -25,10 +25,15 @@ def add_audio_and_subtitles(input_video_path, output_video_path, main_audio_path
     main_audio_path = os.path.abspath(main_audio_path)
     temp_audio_files = []
 
-    language = 'ru'
-    model_id = 'v3_1_ru'
+    if language == 'ru':
+        model_id = 'v4_ru'
+        speaker = 'baya'
+    elif language == 'en':
+        model_id = 'v3_en'
+        speaker = 'en_52'
     sample_rate = 48000
-    speaker = 'kseniya'
+    if speaker:
+        speaker = speaker
     put_accent = True
     put_yo = True
     device = torch.device('cpu')
@@ -57,13 +62,13 @@ def add_audio_and_subtitles(input_video_path, output_video_path, main_audio_path
 
     # Create subtitles synchronized with the generated voices
     subtitle_video_path = os.path.splitext(output_video_path)[0] + '_subtitles.mp4'
-    create_synchronized_subtitles(input_video_path, subtitle_video_path, subtitles_data, temp_audio_files)
+    create_synchronized_subtitles(input_video_path, subtitle_video_path, subtitles_data, temp_audio_files, language)
 
     # Overlay the audio
     add_multiple_audio(subtitle_video_path, temp_audio_files, main_audio_path, subtitles_data)
 
     if clean_temp:
-        cleanup_temp_files(temp_audio_files + [subtitle_video_path])
+        cleanup_temp_files(temp_audio_files)
 
 
 def file_save(filename, audio, sample_rate):
@@ -80,7 +85,7 @@ def cleanup_temp_files(temp_files):
             print(f"Error while deleting {file_path}: {e}")
 
 
-def create_synchronized_subtitles(input_video_path, output_video_path, subtitles_data, audio_files):
+def create_synchronized_subtitles(input_video_path, output_video_path, subtitles_data, audio_files, language):
     """
     Creates synchronized subtitles based on voiceover timing.
     """
@@ -108,7 +113,7 @@ def create_synchronized_subtitles(input_video_path, output_video_path, subtitles
     for subtitle, audio_path in zip(subtitles_data, audio_files):
         start_time_offset = subtitle["start_second"]
         audio = whisperx.load_audio(audio_path)
-        result = subtitel_model.transcribe(audio, batch_size=batch_size, language="ru")
+        result = subtitel_model.transcribe(audio, batch_size=batch_size, language=language)
 
         model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
         result = whisperx.align(result["segments"], model_a, metadata, audio, device, return_char_alignments=True)
@@ -225,6 +230,6 @@ def add_multiple_audio(input_video, voice_files, main_audio, subtitles_data):
 
 if __name__ == ('__main__'):
     subtitles_data = [
-        {"start_second": 3, "subtitle_text": "Слушай этот трэк на своей любимой платформе всего в два клика!"},
+        {"start_second": 3, "subtitle_text": "Listen to this track on your favorite platform in just two clicks!"},
     ]
-    add_audio_and_subtitles(input_video_path='C:/good_var/last_version_with_elements.mp4', output_video_path='C:/good_var/results/fourth_var/fourth_var', main_audio_path='C:/good_var/music/lil_wayne_crop.mp3', subtitles_data=subtitles_data)
+    add_audio_and_subtitles(input_video_path='C:/good_var/last_version_with_elements.mp4', output_video_path='C:/good_var/results/fourth_var/fourth_var_new', main_audio_path='C:/good_var/music/lil_wayne_crop.mp3', subtitles_data=subtitles_data, language='en')
