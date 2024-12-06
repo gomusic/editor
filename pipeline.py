@@ -28,6 +28,8 @@ def parse_arguments():
     parser.add_argument('--processing_model', type=str, default='cpu', help='Processing model: cpu or gpu')
     parser.add_argument('--output_dir', type=str, default='./results', help='Directory to save results')
     parser.add_argument('--start_phone_video', action='store_true', help="Start the clip immediately after the phone screen appears in the frame. Default: false.")
+    parser.add_argument('--no_resize', type=str, default='',
+                        help="Comma-separated list of videos not to resize: 'phone', 'background' or both.")
 
     return parser.parse_args()
 
@@ -88,8 +90,8 @@ def main():
     fps, phone_start_second, back_video_start_second = chroma_replace(editor_config)
 
     data = [
-        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
-        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0, 'background_hex_color': '#2764FB'}
+        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 150}, 'threshold': 0.7},
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 180, 'max': 350}, 'threshold': 0, 'background_hex_color': '#2764FB', 'template_skip_frames': 47}
     ]
     output_path = os.path.join(editor_config.main_folder_path, editor_config.output_video_name)
     share_start_second, link_start_second = get_video(f'{output_path}.mp4', f'{output_path}_with_elements.mp4', data, fps)

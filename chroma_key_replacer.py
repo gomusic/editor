@@ -8,6 +8,7 @@ from configs.editor_config import EditorConfig
 from iterators.png_iterator import FrameIterator as FIter
 from iterators.video_iterator import VideoIterator as VIter
 from PIL import Image, ImageFilter
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 
 # Initialize the segmentation model
@@ -77,7 +78,7 @@ def apply_zoom_to_center(main_frame, background_rect, background_frame, phone_fr
 
     # Check if the zoomed background frame is large enough to cover the detected area
     if new_bg_w >= frame_width or new_bg_h >= frame_height:
-        global_editor_config.start_phone_video = True
+        # global_editor_config.start_phone_video = True
         return phone_frame
 
     # Calculate the coordinates for cropping the zoomed-in frame
@@ -180,6 +181,7 @@ def replace_phone_screen_png(image, background_frame, phone_frame, required_fram
         start_zooming = True
         if not phone_start_second:
             phone_start_second = current_frame / required_frames_for_one_second
+            global_editor_config.start_phone_video = True
         print("Background detected for more than one second.")
 
     return main_background
@@ -275,7 +277,7 @@ def apply_blur(frame, blur_radius=10):
     return np.array(img)
 
 
-def create_resized_video(fps, target_width, target_height, duration=None, target='main_background'):
+def create_resized_video(fps, target_width, target_height, duration=None, target='main_background', no_resize=False):
     global global_editor_config
     if target == 'phone_background':
         temp_video_path = os.path.join(global_editor_config.phone_background_dir)
@@ -285,6 +287,13 @@ def create_resized_video(fps, target_width, target_height, duration=None, target
         source_video = global_editor_config.full_background
     source_video_without_extension = os.path.splitext(os.path.basename(source_video))[0]
     temp_video = os.path.join(temp_video_path, f'{source_video_without_extension}_temp.mp4')
+
+    if no_resize:
+        # Использование VideoFileClip в контекстном менеджере для автоматического закрытия ресурсов
+        with VideoFileClip(source_video) as video_clip:
+            video_clip.write_videofile(temp_video, codec="libx264", fps=fps)
+
+        return temp_video
 
     if not os.path.exists(temp_video_path):
         os.makedirs(temp_video_path)
@@ -366,13 +375,15 @@ def chroma_replace(editor_config):
         fps,
         target_width=frame_width,
         target_height=frame_height,
-        duration=duration
+        duration=duration,
+        no_resize=('background' in editor_config.no_resize)
     )
     temp_phone_back_path = create_resized_video(
         fps,
         target_width=frame_width,
         target_height=frame_height,
-        target='phone_background'
+        target='phone_background',
+        no_resize=('phone' in editor_config.no_resize)
     )
     background_phone_video = cv2.VideoCapture(temp_phone_back_path)
     background_video = cv2.VideoCapture(temp_full_back_path)
@@ -430,10 +441,10 @@ def chroma_replace(editor_config):
 
     while background_phone_video.isOpened():
         back_video_start_second = current_frame / fps
-        ret_bg, background_phone_frame = background_phone_video.read()
+        ret_bg, background_phone_source_frame = background_phone_video.read()
         if not ret_bg:
             break
-        main_background = cv2.resize(background_phone_frame, (frame_width, frame_height))
+        main_background = cv2.resize(background_phone_source_frame, (frame_width, frame_height))
         output_video.write(main_background)
 
     # Освобождаем ресурсы

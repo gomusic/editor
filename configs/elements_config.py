@@ -9,7 +9,7 @@ class ElementsConfig:
     max_zoom_factor = 5
 
     def __init__(self, fps=25):
-        self.skip_frames = 175 # 33-42
+        self.skip_frames = 150 # 33-42
         self.zoom_duration = 0.5 # Zoom time in seconds
         self._fps = fps
         self.zoom_speed = self.max_zoom_factor / (self.zoom_duration * self._fps)

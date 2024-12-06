@@ -225,7 +225,6 @@ def add_multiple_audio(input_video, voice_files, main_audio, subtitles_data):
 
 if __name__ == ('__main__'):
     subtitles_data = [
-        {"start_second": 1, "subtitle_text": "Первый субтитр"},
-        {"start_second": 5, "subtitle_text": "Второй субтитр"},
+        {"start_second": 3, "subtitle_text": "Слушай этот трэк на своей любимой платформе всего в два клика!"},
     ]
-    add_audio_and_subtitles(input_video_path='../../headphones.mp4', output_video_path='D:/test_video', main_audio_path='main_music.mp3', subtitles_data=subtitles_data)
+    add_audio_and_subtitles(input_video_path='C:/good_var/last_version_with_elements.mp4', output_video_path='C:/good_var/results/fourth_var/fourth_var', main_audio_path='C:/good_var/music/lil_wayne_crop.mp3', subtitles_data=subtitles_data)

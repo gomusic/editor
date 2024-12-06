@@ -215,7 +215,7 @@ def elements_search(frame: np.ndarray, templates: List[Template], count: int) ->
     active_template = process_template(templates, frame)
 
     # If all templates are processed, return the original frame
-    if not isinstance(active_template, Template) or active_template.best_match is None:
+    if not isinstance(active_template, Template) or active_template.best_match is None or active_template is None:
         return frame
 
     if active_template and active_template.background_hex_color:
@@ -376,6 +376,8 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
                 roi = image_gray[y:y + h_contour, x:x + w_contour]
 
                 # Сопоставляем шаблон с ROI
+                if resized_template.shape[0] > roi.shape[0] or resized_template.shape[1] > roi.shape[1]:
+                    continue
                 result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)
                 _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
@@ -398,6 +400,8 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
                         active_template.best_match = (center, radius)
 
         else:
+            if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[1]:
+                continue
             result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
@@ -625,8 +629,8 @@ def debug_image(image = None, image_path = None):
 
 if __name__ == ('__main__'):
     data = [
-        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
-        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0,
-         'background_hex_color': '#2764FB', 'template_skip_frames': 5}
+        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 150}, 'threshold': 0.7},
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 80, 'max': 350}, 'threshold': 0,
+         'background_hex_color': '#2764FB', 'template_skip_frames': 23}
     ]
-    get_video(f'results/headphones/output_video.mp4', f'results/headphones/back_test_2.mp4', data, 25)
+    get_video(f'results/headphones/test_back_header.mp4', f'results/headphones/test_back_header_second_elements.mp4', data, 25)
