@@ -82,6 +82,10 @@ python pipeline.py --original_video <path_to_original_video> \
     --processing_model: (Optional) Model for file processing. Options: 'cpu' or 'gpu' (cuda). Default: cpu.
     --output_dir: (Optional) A custom path to save the results. (Default in the project directory is the results folder).
     --start_phone_video (Optional): Whether to start the phone's background movie immediately after the screen appears in the frame. Default: false
+    --no_resize: (Optional) Comma-separated list of videos that should not be resized. Acceptable values: 'phone', 'background', or both. For example:
+                  --no_resize phone (do not resize phone background),
+                  --no_resize background (do not resize full background),
+                  --no_resize phone,background (do not resize both videos). Default: none (all videos will be resized).
 ```
     
 ### Description of Chroma Keying and Zoom Parameters:

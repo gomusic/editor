@@ -65,6 +65,7 @@ class EditorConfig:
             self.processing_model = getattr(args, 'processing_model', self.processing_model)
             self.output_dir = getattr(args, 'output_dir', self.output_dir)  # Directory specified by the user
             self.start_phone_video = getattr(args, 'start_phone_video', self.start_phone_video)
+            self.no_resize = set(getattr(args, 'no_resize', '').split(',')) if args else set()
 
         # Extract the filename without extension
         self.filename_without_extension = os.path.splitext(os.path.basename(self.original_video))[0]

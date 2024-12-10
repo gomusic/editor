@@ -12,6 +12,8 @@ best_match = 0
 best_val = 0
 config = ElementsConfig()
 
+share_start_second, link_start_second = 0, 0
+
 def get_video(input_video_path: str, output_video_path: str, templates_list: List[Dict[str, Any]], fps):
     config.fps = fps
     iterator = VIter(input_video_path)
@@ -36,6 +38,8 @@ def get_video(input_video_path: str, output_video_path: str, templates_list: Lis
         output_video.write(frame)
 
     output_video.release()
+
+    return share_start_second, link_start_second
 
 
 def get_frame_for_color(input_video_path: str):
@@ -124,12 +128,21 @@ def apply_darkening(frame: np.ndarray, active_template: Template) -> np.ndarray:
 
     # Create the mask with a circular region at the new height
     mask = np.ones_like(frame, dtype=np.uint8) * 255
+
     cv2.circle(mask, new_best_match[0], new_best_match[1] + config.radius_increase, (0, 0, 0), thickness=cv2.FILLED)
+
+    # cv2.circle(mask, new_best_match[0], new_best_match[1] + config.radius_increase, bgr_to_grayscale_value(config.radius_border_color), thickness=10)
 
     # Apply the mask to darken the area around the specified center
     frame = np.where(mask == 0, frame, darkened_frame)
     active_template.first_initial = False
     return frame
+
+
+def bgr_to_grayscale_value(bgr_color):
+    """Converts a color from BGR format to a single integer value from 0 to 255."""
+    b, g, r = bgr_color # Unpack the BGR color into its components
+    return (b + g + r) // 3  # Return the average value of the BGR components
 
 
 def update_darkness(template: Template):
@@ -192,6 +205,9 @@ def frame_to_base64(frame):
 
 def elements_search(frame: np.ndarray, templates: List[Template], count: int) -> np.ndarray:
     """Main function for searching elements in the current frame using defined templates."""
+    global share_start_second
+    global link_start_second
+
     height, width, _ = frame.shape
     frame = cv2.fastNlMeansDenoisingColored(frame)
 
@@ -199,12 +215,16 @@ def elements_search(frame: np.ndarray, templates: List[Template], count: int) ->
     active_template = process_template(templates, frame)
 
     # If all templates are processed, return the original frame
-    if not isinstance(active_template, Template) or active_template.best_match is None:
+    if not isinstance(active_template, Template) or active_template.best_match is None or active_template is None:
         return frame
 
     if active_template and active_template.background_hex_color:
+        if not link_start_second:
+            link_start_second = count / config.fps
         print('Copy Link detaction, frame: ', count)
     elif active_template:
+        if not share_start_second:
+            share_start_second = count / config.fps
         print('Template detaction, frame: ', count)
 
     # Process the frame with the current template
@@ -356,6 +376,8 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
                 roi = image_gray[y:y + h_contour, x:x + w_contour]
 
                 # Сопоставляем шаблон с ROI
+                if resized_template.shape[0] > roi.shape[0] or resized_template.shape[1] > roi.shape[1]:
+                    continue
                 result = cv2.matchTemplate(roi, resized_template, cv2.TM_CCOEFF_NORMED)
                 _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
@@ -378,6 +400,8 @@ def find_best_match_full(frame: np.ndarray, active_template: Template):
                         active_template.best_match = (center, radius)
 
         else:
+            if resized_template.shape[0] > image_gray.shape[0] or resized_template.shape[1] > image_gray.shape[1]:
+                continue
             result = cv2.matchTemplate(image_gray, resized_template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
@@ -605,8 +629,8 @@ def debug_image(image = None, image_path = None):
 
 if __name__ == ('__main__'):
     data = [
-        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 120}, 'threshold': 0.7},
-        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 150, 'max': 200}, 'threshold': 0,
-         'background_hex_color': '#2764FB', 'template_skip_frames': 5}
+        {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 150}, 'threshold': 0.7},
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 80, 'max': 350}, 'threshold': 0,
+         'background_hex_color': '#2764FB', 'template_skip_frames': 23}
     ]
-    get_video(f'results/headphones/output_video.mp4', f'results/headphones/back_test_1.mp4', data, 25)
+    get_video(f'results/headphones/test_back_header.mp4', f'results/headphones/test_back_header_second_elements.mp4', data, 25)
