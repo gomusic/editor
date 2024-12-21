@@ -86,6 +86,7 @@ python pipeline.py --original_video <path_to_original_video> \
                   --no_resize phone (do not resize phone background),
                   --no_resize background (do not resize full background),
                   --no_resize phone,background (do not resize both videos). Default: none (all videos will be resized).
+    --music_path: (Optional) Path to the main music file that will be overlaid on the video. Default: none.
 ```
     
 ### Description of Chroma Keying and Zoom Parameters:

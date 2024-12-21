@@ -161,21 +161,28 @@ def create_synchronized_subtitles(input_video_path, output_video_path, subtitles
 
 
 def add_multiple_audio(input_video, voice_files, main_audio, subtitles_data):
-    print('Create video...')
-    fade_volume = 0.07
+    print('Creating video...')
+    fade_volume = 0.07  # Volume of the main audio during voiceover
     output_video = re.sub(r'_subtitles', '', input_video)
+
+    # Check if the main audio file exists
+    if main_audio and not os.path.isfile(main_audio):
+        print("Music file not found. Creating the video with subtitle voiceover only.")
+        main_audio = None
+
+    # Determine whether to use the main audio
+    use_main_audio = bool(main_audio and main_audio.strip())
 
     # Define filter parameters
     filter_complex_parts = []
     amix_inputs = []
-    index_offset = 2
+    index_offset = 1 if not use_main_audio else 2
 
-    # Generate filters for reducing the main audio volume
-    volume_modifiers = []
+    # Generate filters for each voice track
     for i, (voice_file, subtitle_data) in enumerate(zip(voice_files, subtitles_data)):
         start_time = subtitle_data["start_second"]
 
-        # Determine the duration of the current voice file
+        # Determine the duration of the voice track
         probe_command = [
             'ffprobe', '-i', voice_file,
             '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv=p=0'
@@ -183,34 +190,53 @@ def add_multiple_audio(input_video, voice_files, main_audio, subtitles_data):
         voiceover_duration = float(subprocess.check_output(probe_command).decode().strip())
         end_time = start_time + voiceover_duration
 
-        # Add a condition to reduce volume
-        volume_modifiers.append(
-            f"volume=enable='between(t,{start_time},{end_time})':volume={fade_volume}"
-        )
-
-        # Generate filter for each voice file
+        # Add a delay filter for the voice track
         filter_complex_parts.append(
             f"[{index_offset + i}:a]adelay={int(start_time * 1000)}|{int(start_time * 1000)}[voiceover{i}]"
         )
         amix_inputs.append(f"[voiceover{i}]")
 
-    # Add the main audio with reduced volume
-    main_volume_filter = f"[1:a]{','.join(volume_modifiers)}[main_modified]"
-    filter_complex_parts.append(main_volume_filter)
+    # If main audio is present, modify its volume
+    if use_main_audio:
+        volume_modifiers = []
+        for i, subtitle_data in enumerate(subtitles_data):
+            start_time = subtitle_data["start_second"]
 
-    # Mix all audio tracks
+            # Determine the duration of the voice track
+            probe_command = [
+                'ffprobe', '-i', voice_files[i],
+                '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv=p=0'
+            ]
+            voiceover_duration = float(subprocess.check_output(probe_command).decode().strip())
+            end_time = start_time + voiceover_duration
+
+            # Add a condition to reduce the volume
+            volume_modifiers.append(
+                f"volume=enable='between(t,{start_time},{end_time})':volume={fade_volume}"
+            )
+
+        # Modify the main audio
+        main_volume_filter = f"[1:a]{','.join(volume_modifiers)}[main_modified]"
+        filter_complex_parts.append(main_volume_filter)
+        amix_inputs.append("[main_modified]")
+
+    # Mix the audio tracks
     filter_complex_parts.append(
-        f"{''.join(amix_inputs)}[main_modified]amix=inputs={len(amix_inputs) + 1}:duration=longest[audio_out]"
+        f"{''.join(amix_inputs)}amix=inputs={len(amix_inputs)}:duration=longest[audio_out]"
     )
 
-    # Construct the ffmpeg command
+    # Build the ffmpeg command
     command = [
         "ffmpeg",
         "-y",
-        "-i", input_video,
-        "-i", main_audio
+        "-i", input_video
     ]
-    # Add all voice files
+
+    # Add main audio if present
+    if use_main_audio:
+        command.extend(["-i", main_audio])
+
+    # Add voice tracks
     for voice_file in voice_files:
         command.extend(["-i", voice_file])
 
@@ -227,6 +253,8 @@ def add_multiple_audio(input_video, voice_files, main_audio, subtitles_data):
 
     # Execute the command
     subprocess.run(command)
+
+
 
 if __name__ == ('__main__'):
     subtitles_data = [

@@ -31,6 +31,7 @@ def parse_arguments():
     parser.add_argument('--start_phone_video', action='store_true', help="Start the clip immediately after the phone screen appears in the frame. Default: false.")
     parser.add_argument('--no_resize', type=str, default='',
                         help="Comma-separated list of videos not to resize: 'phone', 'background' or both.")
+    parser.add_argument('--music_path', type=str, help="Path to the music file")
 
     return parser.parse_args()
 
@@ -110,7 +111,7 @@ def main():
     add_audio_and_subtitles(
         input_video_path=with_elements_video,
         output_video_path=subtitles_video,
-        main_audio_path='C:/good_var/music/lil_wayne_crop.mp3',
+        main_audio_path=editor_config.music_path,
         subtitles_data=subtitles_data,
         language='en',
         clean_temp=True

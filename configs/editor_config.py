@@ -39,6 +39,7 @@ class EditorConfig:
     processing_model = 'cpu'
     output_dir = './results'  # Default directory
     start_phone_video = False
+    music_path = ''
 
 
     def __init__(self, args=None):
@@ -63,6 +64,7 @@ class EditorConfig:
             self.output_dir = getattr(args, 'output_dir', self.output_dir)  # Directory specified by the user
             self.start_phone_video = getattr(args, 'start_phone_video', self.start_phone_video)
             self.no_resize = set(getattr(args, 'no_resize', '').split(',')) if args else set()
+            self.music_path = os.path.abspath(getattr(args, 'music_path', self.music_path))
 
         # Extract the filename without extension
         self.filename_without_extension = os.path.splitext(os.path.basename(self.original_video))[0]
