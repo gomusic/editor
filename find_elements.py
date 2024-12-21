@@ -539,7 +539,7 @@ def display_hsv_highlight(image_path, lower_hsv, upper_hsv, is_white = False):
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
 
-    image = cv2.fastNlMeansDenoisingColored(image) # Reducing image noise
+    # image = cv2.fastNlMeansDenoisingColored(image) # Reducing image noise
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
     # Create a mask for the specified HSV range
@@ -617,20 +617,26 @@ def debug_image(image = None, image_path = None):
         bottom_right = (top_left[0] + tw, top_left[1] + th)
         cv2.rectangle(image, top_left, bottom_right, (0, 255, 0), 2)
 
-    cv2.imwrite('res.jpg', image)
-    return
+    # cv2.imwrite('res.jpg', image)
+    # return
 
     frame = elements_search(
         image,
-        [Template(template_path='src/link/tiktok_link.png', resize={'min': 15, 'max': 20}, threshold=0.6, background_hex_color='#2764FB')]
+        [Template(template_path='src/link/tiktok_link.png', resize={'min': 15, 'max': 20}, threshold=0.6, background_hex_color='#2764FB')],
+        1
     )
 
     cv2.imwrite('res2.jpg', frame)
 
 if __name__ == ('__main__'):
+    # lower, upper, l2, u2 = hex_to_hsv_range('#2764FB')
+    # display_hsv_highlight('test.png', lower, upper)
+
+    # debug_image(image_path='test.png')
+
     data = [
         {'template_path': './src/share/big-share-white.png', 'resize': {'min': 80, 'max': 150}, 'threshold': 0.7},
-        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 80, 'max': 350}, 'threshold': 0,
-         'background_hex_color': '#2764FB', 'template_skip_frames': 23}
+        {'template_path': './src/link/tiktok_link.png', 'resize': {'min': 180, 'max': 350}, 'threshold': 0,
+         'background_hex_color': '#2764FB', 'template_skip_frames': 47}
     ]
-    get_video(f'results/headphones/test_back_header.mp4', f'results/headphones/test_back_header_second_elements.mp4', data, 25)
+    get_video(f'results/headphones/last_version.mp4', f'results/headphones/test_back_header_second_elements.mp4', data, 25)
