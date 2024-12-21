@@ -1,8 +1,13 @@
 cvzone==1.6.1
 opencv-python==4.10.0.84
-av==13.0.0
+av==11.0.0
 tqdm==4.66.5
 pims==0.7
 numpy==1.26.3
 mediapipe==0.10.14
 moviepy==1.0.3
+soundfile==0.12.1
+torch==2.4.1 --index-url https://download.pytorch.org/whl/cu118
+torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu118
+torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118
+git+https://github.com/m-bain/whisperx.git

@@ -59,6 +59,56 @@ def frame_to_base64(frame):
     return base64.b64encode(buffer).decode('utf-8')
 
 
+def tensor_to_base64(tensor, batch_index=0):
+    """
+    Converts a tensor to a base64 string (an image or the first image from a batch).
+
+    :param tensor: Image tensor (can be in format (C, H, W), (H, W, C), (B, C, H, W), (N, C, H, W)).
+    :param batch_index: Index of the image in the batch, if a batch is provided (default is 0, for the first image).
+    :return: A string in base64 format.
+    """
+    # Convert tensor to NumPy if necessary
+    if not isinstance(tensor, np.ndarray):
+        tensor = tensor.detach().cpu().numpy()  # For PyTorch
+
+    # Check if this is a batch of images
+    if len(tensor.shape) == 4:  # Batch of images (B, C, H, W)
+        tensor = tensor[batch_index]  # Select image by index
+
+    # Process tensor with shape (C, H, W) or (H, W, C)
+    if len(tensor.shape) == 3:
+        if tensor.shape[0] > 4:  # If there are more than 4 channels, keep the first 3
+            print(f"Warning: Tensor has {tensor.shape[0]} channels, truncating to 3.")
+            tensor = tensor[:3]  # Truncate to the first 3 channels
+        if tensor.shape[0] in [1, 3, 4]:  # If channels are first
+            tensor = np.transpose(tensor, (1, 2, 0))  # Convert to (H, W, C)
+    elif len(tensor.shape) == 2:  # Grayscale (H, W)
+        tensor = np.expand_dims(tensor, axis=-1)  # Add a channel
+
+    # Validate the tensor shape
+    if len(tensor.shape) != 3 or tensor.shape[2] not in [1, 3, 4]:
+        raise ValueError("Tensor must have shape (H, W, C) with 1, 3, or 4 channels.")
+
+    # Normalize tensor values to the range [0, 1]
+    tensor_min = tensor.min()
+    tensor_max = tensor.max()
+    if tensor_max - tensor_min > 0:
+        tensor = (tensor - tensor_min) / (tensor_max - tensor_min)
+    else:
+        tensor = np.clip(tensor, 0, 1)  # If tensor is already normalized
+
+    # Scale values to the range [0, 255]
+    tensor = (tensor * 255).astype(np.uint8)
+
+    # Encode the image as JPEG
+    success, buffer = cv2.imencode('.jpg', tensor)
+    if not success:
+        raise RuntimeError("Failed to encode image to JPEG format.")
+
+    # Convert to Base64
+    return base64.b64encode(buffer).decode('utf-8')
+
+
 # Function to apply zoom towards the center of the background
 def apply_zoom_to_center(main_frame, background_rect, background_frame, phone_frame, frame_width, frame_height, zoom_scale):
     global global_editor_config
@@ -78,7 +128,6 @@ def apply_zoom_to_center(main_frame, background_rect, background_frame, phone_fr
 
     # Check if the zoomed background frame is large enough to cover the detected area
     if new_bg_w >= frame_width or new_bg_h >= frame_height:
-        # global_editor_config.start_phone_video = True
         return phone_frame
 
     # Calculate the coordinates for cropping the zoomed-in frame
@@ -413,29 +462,30 @@ def chroma_replace(editor_config):
         ret_bg, background_phone_frame = background_phone_video.read()
 
     for frame in frame_iterator:
-        ret_bg, background_frame = background_video.read()
-        if not ret_bg:
-            background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        if current_frame >= 122: #122
             ret_bg, background_frame = background_video.read()
-
-        if global_editor_config.start_phone_video:
-            ret_bg, background_phone_frame = background_phone_video.read()
             if not ret_bg:
-                background_phone_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret_bg, background_frame = background_video.read()
+
+            if global_editor_config.start_phone_video:
                 ret_bg, background_phone_frame = background_phone_video.read()
+                if not ret_bg:
+                    background_phone_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    ret_bg, background_phone_frame = background_phone_video.read()
 
-        if global_editor_config.robust_output_type == 'png':
-            processed_frame = replace_phone_screen_png(
-                frame, background_frame, background_phone_frame,
-                required_frames_for_one_second, frame_width, frame_height
-            )
-        elif global_editor_config.robust_output_type == 'video':
-            processed_frame = replace_phone_screen_video(
-                frame, background_frame,
-                required_frames_for_one_second, frame_width, frame_height
-            )
+            if global_editor_config.robust_output_type == 'png':
+                processed_frame = replace_phone_screen_png(
+                    frame, background_frame, background_phone_frame,
+                    required_frames_for_one_second, frame_width, frame_height
+                )
+            elif global_editor_config.robust_output_type == 'video':
+                processed_frame = replace_phone_screen_video(
+                    frame, background_frame,
+                    required_frames_for_one_second, frame_width, frame_height
+                )
 
-        output_video.write(processed_frame)
+            output_video.write(processed_frame)
 
         current_frame += 1
 
