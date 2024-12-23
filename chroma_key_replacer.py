@@ -462,30 +462,29 @@ def chroma_replace(editor_config):
         ret_bg, background_phone_frame = background_phone_video.read()
 
     for frame in frame_iterator:
-        if current_frame >= 122: #122
+        ret_bg, background_frame = background_video.read()
+        if not ret_bg:
+            background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
             ret_bg, background_frame = background_video.read()
+
+        if global_editor_config.start_phone_video:
+            ret_bg, background_phone_frame = background_phone_video.read()
             if not ret_bg:
-                background_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                ret_bg, background_frame = background_video.read()
-
-            if global_editor_config.start_phone_video:
+                background_phone_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 ret_bg, background_phone_frame = background_phone_video.read()
-                if not ret_bg:
-                    background_phone_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    ret_bg, background_phone_frame = background_phone_video.read()
 
-            if global_editor_config.robust_output_type == 'png':
-                processed_frame = replace_phone_screen_png(
-                    frame, background_frame, background_phone_frame,
-                    required_frames_for_one_second, frame_width, frame_height
-                )
-            elif global_editor_config.robust_output_type == 'video':
-                processed_frame = replace_phone_screen_video(
-                    frame, background_frame,
-                    required_frames_for_one_second, frame_width, frame_height
-                )
+        if global_editor_config.robust_output_type == 'png':
+            processed_frame = replace_phone_screen_png(
+                frame, background_frame, background_phone_frame,
+                required_frames_for_one_second, frame_width, frame_height
+            )
+        elif global_editor_config.robust_output_type == 'video':
+            processed_frame = replace_phone_screen_video(
+                frame, background_frame,
+                required_frames_for_one_second, frame_width, frame_height
+            )
 
-            output_video.write(processed_frame)
+        output_video.write(processed_frame)
 
         current_frame += 1
 
